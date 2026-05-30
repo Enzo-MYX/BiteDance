@@ -12,10 +12,10 @@ public class Parser {
     static String parseFromInfo(String text) {
         Matcher m = p.matcher(text);
         if (m.find()) {
-            System.out.println("Sent!");
+            // System.out.println("Sent!");
             return m.group(1);
         }
-        System.out.print("No message");
+        System.out.print("Cannot extract valueable info");
         return "";
     }
 
@@ -25,10 +25,10 @@ public class Parser {
                 "Food at UTown SRC Level 2, self service",
                 "Buffet beside Engineering Auditorium, organiser approved",
                 "Nearby MD6 01-01B halal snack",
-                "Location: S14 level 5, clearing soon",
+                "Location: S14 level 5, clearing soon", // needs adjustments
                 "Outside AS2 Level 2, leftover catering",
-                "Shepherds pie at Engineering Auditorium.",
-                "Just some food left here.",
+                "Shepherds pie at Engineering Auditorium.", // will try to only take info from "at" onwards
+                "Just some food left here.", // this is intended for no output testing
                 "Food at S17 level 4. Leftover potato salad, shakshuka, curry chicken, dory fish, and ice lemon tea."
         };
         for (String txt : inputs) {System.out.println(Parser.parseFromInfo(txt));}
