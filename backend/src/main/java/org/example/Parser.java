@@ -7,8 +7,8 @@ public class Parser {
     public Parser() {}
 
     private static Pattern triggerPattern = Pattern.compile(
-        "(?i)\\b(?:at|beside|near|nearby|location:?|outside)\\b\\s*(?:\\w+\\s+)*?" +
-                "((?:[a-z]+[0-9]+|utown|(?:\\w+\\s+)*?auditorium)[^,.\n]*)");
+            "(?i)\\b(?:at|beside|near|nearby|location|outside)\\b:?\\s*(?:\\w+\\s+)*?" +
+                    "((?:[a-z]+[0-9]+|utown|(?:\\w+\\s+)*?auditorium)[^,.\\n]*)");
     private static Pattern lineStart = Pattern.compile(
             "(?i)^\\s*((?:[a-z]+[0-9]+|utown)[^,.\n]*)", Pattern.MULTILINE);
     private static Pattern keyword = Pattern.compile("((?i)\\b(?:LT|AS|MD)\\s?\\d{1,2}\\b|\\butown auditorium\\b)");
@@ -44,7 +44,7 @@ public class Parser {
                 "Food at UTown SRC Level 2, self service",
                 "Buffet beside Engineering Auditorium, organiser approved", // fixed "Auditorium" capture overreach
                 "Nearby MD 6 01-01B halal snack", // defaulting test success
-                "Location: S14 level 5, clearing soon", // needs adjustments
+                "Location: S14 level 5, clearing soon", // "Location: " trigger sequence fixed
                 "Outside AS2 Level 2, leftover catering",
                 "Shepherds pie at Engineering Auditorium.", // fixed
                 "Just some food left here.", // this is intended for no output testing
