@@ -39,7 +39,7 @@ public class MyBot implements LongPollingSingleThreadUpdateConsumer {
 
     @Override
     public void consume(Update update) {
-        /*if (!update.hasMessage()) return;
+        if (!update.hasMessage()) return;
         Message msg = update.getMessage();
         long chatId = msg.getChatId();
         String userName = msg.getFrom().getUserName();
@@ -61,12 +61,12 @@ public class MyBot implements LongPollingSingleThreadUpdateConsumer {
 //                e.printStackTrace();
 //            }
 //        }
-        String parsed = Parser.parseFromInfo(messageText);
-        if (parsed != "") {
-            eventsList.add(new Event(chatId, userName, time, messageText, vid, anm, photo, parsed));
-//            saveEventsToJson(eventsList);
+        String keyword = Parser.keywordDetect(messageText);
+        String parsed = Parser.keywordDetect(messageText);
+        if (keyword != "") {
+            eventsList.add(new Event(chatId, userName, time, messageText, vid, anm, photo, parsed, LocationMapper.getCoordinates(keyword)));
+            saveEventsToJson(eventsList);
             System.out.println(parsed);
-        }*/
-        if (update.hasMessage()) System.out.println(update.getMessage().getText());
+        }
     }
 }

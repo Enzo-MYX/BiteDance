@@ -17,9 +17,9 @@ public class Event {
     public final Animation anm;
     public final List<PhotoSize> photo;
     public final String location;
-    public final double lat = incr % 2 == 0 ? -45.0 : 45.0;
-    public final double lon = incr % 3 == 0 ? 120.0 : 60.0;
-    public Event(long chatId, String uploader, Long time, String txt, Video vid, Animation anm, List<PhotoSize> photo, String loc) {
+    public final double lat;
+    public final double lon;
+    public Event(long chatId, String uploader, Long time, String txt, Video vid, Animation anm, List<PhotoSize> photo, String loc, Coordinates coords) {
         this.id = incr;
         incr++;
         this.chatId = chatId;
@@ -30,5 +30,7 @@ public class Event {
         this.anm = anm;
         this.photo = photo;
         this.location = loc;
+        this.lat = coords.getLat();
+        this.lon = coords.getLon();
     }
 }
