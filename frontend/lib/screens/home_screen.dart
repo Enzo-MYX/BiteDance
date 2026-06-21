@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import '../models/event.dart';
 import '../services/events_loader.dart';
 import '../services/location.dart';
@@ -74,7 +75,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Icon(Icons.location_on, size: 18, color: Colors.white70),
                 const SizedBox(width: 4),
                 Text(
-                  _locationStatus == '📍 GPS active'
+                  _locationStatus == 'GPS active'
                       ? '${_currentLat.toStringAsFixed(4)}, ${_currentLon.toStringAsFixed(4)}'
                       : _locationStatus,
                   style: const TextStyle(fontSize: 12),
@@ -140,6 +141,22 @@ class _HomeScreenState extends State<HomeScreen> {
                   itemBuilder: (context, index) {
                     final event = events[index];
                     final isFav = _favoriteIds.contains(event.id);
+
+                    // ---- Distance calculation ----
+                    String distanceText = '...';
+                    if (_currentLat != 0.0 || _currentLon != 0.0) {
+                      double dist = Geolocator.distanceBetween(
+                        _currentLat,
+                        _currentLon,
+                        event.lat,
+                        event.lon,
+                      );
+                      distanceText = dist < 1000
+                          ? '${dist.toStringAsFixed(0)} m'
+                          : '${(dist / 1000).toStringAsFixed(1)} km';
+                    }
+                    // -----------------------------
+
                     return ListTile(
                       leading: IconButton(
                         icon: Icon(
@@ -149,6 +166,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         onPressed: () => _toggleFavorite(event.id),
                       ),
                       title: Text(event.location),
+                      trailing: Text(
+                        distanceText,
+                        style: const TextStyle(fontSize: 14, color: Colors.grey),
+                      ),
                       onTap: () {
                         Navigator.push(
                           context,
