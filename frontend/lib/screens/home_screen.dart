@@ -4,6 +4,7 @@ import '../models/event.dart';
 import '../services/events_loader.dart';
 import '../services/location.dart';
 import 'detail_screen.dart';
+import 'filter_notification_screen.dart';//transition into notification setting page
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,11 +17,10 @@ class _HomeScreenState extends State<HomeScreen> {
   late Future<List<Event>> _futureEvents;
   Set<int> _favoriteIds = {};
 
-  // GPS related variables
   final Location _locationService = Location();
   double _currentLat = 0.0;
   double _currentLon = 0.0;
-  String _locationStatus = 'Initializing...';  // for feedback
+  String _locationStatus = 'Initializing...';//not utilized for now
 
   @override
   void initState() {
@@ -66,125 +66,176 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Events'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: Row(
-              children: [
-                Icon(Icons.location_on, size: 18, color: Colors.white70),
-                const SizedBox(width: 4),
-                Text(
-                  _locationStatus == 'GPS active'
-                      ? '${_currentLat.toStringAsFixed(4)}, ${_currentLon.toStringAsFixed(4)}'
-                      : _locationStatus,
-                  style: const TextStyle(fontSize: 12),
+      floatingActionButton: FloatingActionButton(
+        child: const Icon(Icons.tune),
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+              const FilterNotificationScreen(),
+            ),
+          );
+        },
+      ),//add floating action button on homescreen, transition to notification screen
+      appBar: AppBar(title: const Text('Events')),
+      body: FutureBuilder<List<Event>>(
+        future: _futureEvents,
+        builder: (context, snapshot) {
+          // Show loading spinner while waiting
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          // Show error message if something went wrong
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+          // If no data or empty list
+          if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return const Center(child: Text('No events found'));
+          }
+          // Data is ready – build the list
+          final events = snapshot.data!;
+          return ListView.builder(
+            itemCount: events.length,
+            itemBuilder: (context, index) {
+              final event = events[index];
+              final isFav = _favoriteIds.contains(event.id);
+              String distanceText = '...';
+              if (_currentLat != 0.0 || _currentLon != 0.0) {
+                double dist = Geolocator.distanceBetween(
+                  _currentLat,
+                  _currentLon,
+                  event.lat,
+                  event.lon,
+                );
+                distanceText = dist < 1000
+                    ? '${dist.toStringAsFixed(0)} m'
+                    : '${(dist / 1000).toStringAsFixed(1)} km';
+              }
+              return Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
                 ),
-              ],
-            ),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            margin: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.gps_fixed, color: Colors.blue.shade700),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _locationStatus,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue.shade900,
+                child: Card(
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => DetailScreen(event: event),
                         ),
+                      );
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: event.mediaUrls.isNotEmpty
+                                ? Image.asset(
+                              'assets/images/${event.mediaUrls.first.split('/').last}',
+                              width: 90,
+                              height: 90,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                width: 90,
+                                height: 90,
+                                color: Colors.grey.shade300,
+                                child: const Icon(
+                                  Icons.broken_image,
+                                  size: 40,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            )
+                                : Container(
+                              width: 90,
+                              height: 90,
+                              color: Colors.grey.shade300,
+                              child: const Icon(
+                                Icons.image,
+                                size: 40,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ),//fits and crops image at center, uses grey default if no image or error
+
+                          const SizedBox(width: 12),
+
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  event.location,
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+
+                                const SizedBox(height: 6),
+
+                                const Text(
+                                  "Buffet Event",
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                  ),
+                                ),
+
+                                const SizedBox(height: 12),
+
+                                Row(
+                                  children: [
+                                    const Icon(Icons.person, size: 16),
+                                    const SizedBox(width: 4),
+                                    Text("User: ${event.uploader}"),
+                                  ],
+                                ),
+
+                                const SizedBox(height: 4),
+
+                                Row(
+                                  children: [
+                                    const Icon(Icons.location_on, size: 16),
+                                    const SizedBox(width: 4),
+                                    Text("Distance: $distanceText"),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          IconButton(
+                            icon: Icon(
+                              isFav
+                                  ? Icons.star
+                                  : Icons.star_border,
+                              color: isFav
+                                  ? Colors.amber
+                                  : Colors.grey,
+                            ),
+                            onPressed: () =>
+                                _toggleFavorite(event.id),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _currentLat == 0.0 && _currentLon == 0.0
-                            ? 'Waiting for coordinates...'
-                            : 'Lat: $_currentLat, Lon: $_currentLon',
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: FutureBuilder<List<Event>>(
-              future: _futureEvents,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Center(child: Text('No events found'));
-                }
-                final events = snapshot.data!;
-                return ListView.builder(
-                  itemCount: events.length,
-                  itemBuilder: (context, index) {
-                    final event = events[index];
-                    final isFav = _favoriteIds.contains(event.id);
+              );
 
-                    // ---- Distance calculation ----
-                    String distanceText = '...';
-                    if (_currentLat != 0.0 || _currentLon != 0.0) {
-                      double dist = Geolocator.distanceBetween(
-                        _currentLat,
-                        _currentLon,
-                        event.lat,
-                        event.lon,
-                      );
-                      distanceText = dist < 1000
-                          ? '${dist.toStringAsFixed(0)} m'
-                          : '${(dist / 1000).toStringAsFixed(1)} km';
-                    }
-                    // -----------------------------
-
-                    return ListTile(
-                      leading: IconButton(
-                        icon: Icon(
-                          isFav ? Icons.star : Icons.star_border,
-                          color: isFav ? Colors.amber : Colors.grey,
-                        ),
-                        onPressed: () => _toggleFavorite(event.id),
-                      ),
-                      title: Text(event.location),
-                      trailing: Text(
-                        distanceText,
-                        style: const TextStyle(fontSize: 14, color: Colors.grey),
-                      ),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => DetailScreen(event: event),
-                          ),
-                        );
-                      },
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ],
+            },
+          );
+        },
       ),
     );
   }

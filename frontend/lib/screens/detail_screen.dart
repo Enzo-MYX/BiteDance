@@ -9,7 +9,6 @@ class DetailScreen extends StatelessWidget {
     return '${dt.day}/${dt.month}/${dt.year} ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
   }
 
-  // Helper to decide which widget to show for each media URL
   Widget _buildMediaWidget(String url) {
     final fileName = url.split('/').last;
     final assetPath = 'assets/images/$fileName';
@@ -19,14 +18,13 @@ class DetailScreen extends StatelessWidget {
       return Image.asset(
         assetPath,
         fit: BoxFit.cover,
-        height: 600,
+        height: 220,
         width: double.infinity,
         errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 50),
       );
     } else if (lower.endsWith('.mp4')) {
-      // Videos unsupported as of now, this is just a fake icon
       return Container(
-        height: 200,
+        height: 220,
         width: double.infinity,
         color: Colors.grey[300],
         child: const Center(
@@ -53,40 +51,105 @@ class DetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(event.location)),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Uploader: ${event.uploader}', style: const TextStyle(fontSize: 18)),
-            const SizedBox(height: 8),
-            Text('Time: ${_formatDateTime(event.time)}', style: const TextStyle(fontSize: 16)),
-            const SizedBox(height: 16),
-            Text('Message:', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text(event.txt, style: const TextStyle(fontSize: 16)),
-            const SizedBox(height: 24),
-            const Divider(),
-            const SizedBox(height: 12),
-            // Now implemented media section: (For testing purposes; not finalized UI)
-            const Text('Media:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            if (event.mediaUrls.isEmpty)
-              const Text('No media attached.', style: TextStyle(fontSize: 16, color: Colors.grey))
-            else
-              Expanded(
-                child: ListView.builder(
-                  itemCount: event.mediaUrls.length,
-                  itemBuilder: (ctx, index) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12.0),
-                      child: _buildMediaWidget(event.mediaUrls[index]),
-                    );
-                  },
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+
+              Text(
+                "${event.location} Buffet",
+                style: const TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-          ],
+
+              const SizedBox(height: 20),
+              event.mediaUrls.isNotEmpty
+                  ? _buildMediaWidget(event.mediaUrls.first)
+                  : Container(
+                height: 220,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.image,
+                    size: 80,
+                    color: Colors.grey,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              Card(
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                    children: [
+
+                      Text(
+                        "Uploader: ${event.uploader}",
+                        style: TextStyle(fontSize: 16),
+                      ),
+
+                      SizedBox(height: 10),
+
+                      Text(
+                        "Time: ${_formatDateTime(event.time)}",
+                        style: TextStyle(fontSize: 16),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              const Text(
+                "Telegram Details",
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              Card( //card styled, making more user-attractive maybe
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text(
+                    event.txt,
+                    style: TextStyle(fontSize: 16),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  // Kept existing placeholder method (unchanged, but unused)
+  Widget _buildMediaPlaceholder(String label, dynamic value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        children: [
+          Text('$label: ', style: const TextStyle(fontWeight: FontWeight.w500)),
+          Expanded(
+            child: Text(value == null ? 'null (to be added later)' : 'present – will display here'),
+          ),
+        ],
       ),
     );
   }
