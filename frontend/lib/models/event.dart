@@ -6,12 +6,10 @@ class Event {
     final String uploader;
     final DateTime time;
     final String txt;
-    final dynamic vid;     // null for now, can be a Map later
-    final dynamic anm;     // null for now
-    final dynamic photo;   // null for now
     final String location;
     final double lat;
     final double lon;
+    final List<String> mediaUrls;
 
     Event({
         required this.id,
@@ -19,12 +17,10 @@ class Event {
         required this.uploader,
         required this.time,
         required this.txt,
-        required this.vid,
-        required this.anm,
-        required this.photo,
         required this.location,
         required this.lat,
         required this.lon,
+        this.mediaUrls = const [],
     });
 
     factory Event.fromJson(Map<String, dynamic> json) {
@@ -37,16 +33,14 @@ class Event {
             uploader: json['uploader'] as String,
             time: dateTime,
             txt: json['txt'] as String,
-            vid: json['vid'],
-            anm: json['anm'],
-            photo: json['photo'],
             location: json['location'] as String,
             lat: (json['lat'] as num).toDouble(),
             lon: (json['lon'] as num).toDouble(),
+            mediaUrls: (json['mediaUrls'] as List?)?.map((e) => e.toString()).toList() ?? [],
         );
     }
 
     @override
     String toString() =>
-        'Event(id: $id, location: $location, uploader: $uploader, lat: $lat, lon: $lon)';
+        'Event(chatId: $chatId, userName: $uploader, location: $location, lat: $lat, lon: $lon, mediaUrls: ${mediaUrls.length})';
 }

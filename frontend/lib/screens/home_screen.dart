@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import '../models/event.dart';
 import '../services/events_loader.dart';
+import '../services/location.dart';
 import 'detail_screen.dart';
 import 'filter_notification_screen.dart';//transition into notification setting page
 
@@ -15,10 +17,40 @@ class _HomeScreenState extends State<HomeScreen> {
   late Future<List<Event>> _futureEvents;
   Set<int> _favoriteIds = {};
 
+  final Location _locationService = Location();
+  double _currentLat = 0.0;
+  double _currentLon = 0.0;
+  String _locationStatus = 'Initializing...';//not utilized for now
+
   @override
   void initState() {
     super.initState();
     _futureEvents = EventLoader.loadEvents();
+    _initLocation();
+  }
+
+  Future<void> _initLocation() async {
+    final hasPermission = await _locationService.requestPermission();
+    if (!hasPermission) {
+      setState(() {
+        _locationStatus = 'Location permission denied';
+      });
+      return;
+    }
+
+    setState(() {
+      _locationStatus = 'Waiting for location...';
+    });
+
+    _locationService.startLocationUpdates(
+      onLocationUpdate: (lat, lon) {
+        setState(() {
+          _currentLat = lat;
+          _currentLon = lon;
+          _locationStatus = 'GPS active';
+        });
+      },
+    );
   }
 
   void _toggleFavorite(int eventId) {
@@ -69,6 +101,18 @@ class _HomeScreenState extends State<HomeScreen> {
             itemBuilder: (context, index) {
               final event = events[index];
               final isFav = _favoriteIds.contains(event.id);
+              String distanceText = '...';
+              if (_currentLat != 0.0 || _currentLon != 0.0) {
+                double dist = Geolocator.distanceBetween(
+                  _currentLat,
+                  _currentLon,
+                  event.lat,
+                  event.lon,
+                );
+                distanceText = dist < 1000
+                    ? '${dist.toStringAsFixed(0)} m'
+                    : '${(dist / 1000).toStringAsFixed(1)} km';
+              }
               return Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
@@ -90,86 +134,103 @@ class _HomeScreenState extends State<HomeScreen> {
                       );
                     },
                     child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Row(
-                          children: [
-                          Container(
-                          width: 90,
-                          height: 90,
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade300,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(
-                            Icons.image,
-                            size: 40,
-                            color: Colors.grey,
-                          ),
-                        ),
-
-                        const SizedBox(width: 12),
-
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
                         children: [
-                          Text(
-                            event.location,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: event.mediaUrls.isNotEmpty
+                                ? Image.asset(
+                              'assets/images/${event.mediaUrls.first.split('/').last}',
+                              width: 90,
+                              height: 90,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                width: 90,
+                                height: 90,
+                                color: Colors.grey.shade300,
+                                child: const Icon(
+                                  Icons.broken_image,
+                                  size: 40,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            )
+                                : Container(
+                              width: 90,
+                              height: 90,
+                              color: Colors.grey.shade300,
+                              child: const Icon(
+                                Icons.image,
+                                size: 40,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ),//fits and crops image at center, uses grey default if no image or error
+
+                          const SizedBox(width: 12),
+
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  event.location,
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+
+                                const SizedBox(height: 6),
+
+                                const Text(
+                                  "Buffet Event",
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                  ),
+                                ),
+
+                                const SizedBox(height: 12),
+
+                                Row(
+                                  children: [
+                                    const Icon(Icons.person, size: 16),
+                                    const SizedBox(width: 4),
+                                    Text("User: ${event.uploader}"),
+                                  ],
+                                ),
+
+                                const SizedBox(height: 4),
+
+                                Row(
+                                  children: [
+                                    const Icon(Icons.location_on, size: 16),
+                                    const SizedBox(width: 4),
+                                    Text("Distance: $distanceText"),
+                                  ],
+                                ),
+                              ],
                             ),
                           ),
 
-                          const SizedBox(height: 6),
-
-                          const Text(
-                            "Buffet Event",
-                            style: TextStyle(
-                              color: Colors.grey,
+                          IconButton(
+                            icon: Icon(
+                              isFav
+                                  ? Icons.star
+                                  : Icons.star_border,
+                              color: isFav
+                                  ? Colors.amber
+                                  : Colors.grey,
                             ),
-                          ),
-
-                          const SizedBox(height: 12),
-
-                          Row(
-                            children: const [
-                              Icon(Icons.person, size: 16),
-                              SizedBox(width: 4),
-                              Text("User"),
-                            ],
-                          ),
-
-                          const SizedBox(height: 4),
-
-                          Row(
-                            children: const [
-                              Icon(Icons.location_on, size: 16),
-                              SizedBox(width: 4),
-                              Text("Distance"),
-                            ],
+                            onPressed: () =>
+                                _toggleFavorite(event.id),
                           ),
                         ],
                       ),
                     ),
-
-                    IconButton(
-                      icon: Icon(
-                        isFav
-                            ? Icons.star
-                            : Icons.star_border,
-                        color: isFav
-                            ? Colors.amber
-                            : Colors.grey,
-                      ),
-                      onPressed: () =>
-                          _toggleFavorite(event.id),
-                    ),
-                    ],
                   ),
                 ),
-              ),
-              ),
               );
 
             },
