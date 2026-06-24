@@ -1,3 +1,4 @@
+import 'package:bitedance/services/region_notifier.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import '../models/event.dart';
@@ -16,6 +17,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   late Future<List<Event>> _futureEvents;
   Set<int> _favoriteIds = {};
+  late RegionNotifier _regionNotifier;
 
   final Location _locationService = Location();
   double _currentLat = 0.0;
@@ -27,6 +29,8 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _futureEvents = EventLoader.loadEvents();
     _initLocation();
+    _regionNotifier = RegionNotifier.instance;
+    _regionNotifier.addListener(_onRegionChanged);
   }
 
   Future<void> _initLocation() async {
@@ -63,6 +67,26 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void _onRegionChanged() {
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _regionNotifier.removeListener(_onRegionChanged);
+    super.dispose();
+  }
+
+  bool _isEventInRegion(Event event) {
+    final regions = _regionNotifier.regions;
+    if (regions.isEmpty) return true;
+    for (final region in regions) {
+      double dist = Geolocator.distanceBetween(event.lat, event.lon, region.lat, region.lon);
+      if (dist <= region.radius) return true;
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -96,10 +120,16 @@ class _HomeScreenState extends State<HomeScreen> {
           }
           // Data is ready – build the list
           final events = snapshot.data!;
+          final filteredEvents = events.where((event) {
+            return _isEventInRegion(event);
+          }).toList();
+          if (filteredEvents.isEmpty) {
+            return const Center(child: Text('No events match your filters'));
+          }
           return ListView.builder(
-            itemCount: events.length,
+            itemCount: filteredEvents.length,
             itemBuilder: (context, index) {
-              final event = events[index];
+              final event = filteredEvents[index];
               final isFav = _favoriteIds.contains(event.id);
               String distanceText = '...';
               if (_currentLat != 0.0 || _currentLon != 0.0) {
