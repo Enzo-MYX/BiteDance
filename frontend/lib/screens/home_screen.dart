@@ -79,12 +79,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
   bool _isEventInRegion(Event event) {
     final regions = _regionNotifier.regions;
-    if (regions.isEmpty) return true;
     for (final region in regions) {
       double dist = Geolocator.distanceBetween(event.lat, event.lon, region.lat, region.lon);
       if (dist <= region.radius) return true;
     }
-    return false;
+    return _isEventNearMe(event);
+  }
+
+  bool _isEventNearMe(Event event) {
+    if (!_regionNotifier.rtlEnabled) return false;
+    if (_currentLat == 0.0 && _currentLon == 0.0) return false;
+    double distance = Geolocator.distanceBetween(_currentLat, _currentLon, event.lat, event.lon);
+    return distance <= _regionNotifier.maxDistance;
   }
 
   @override
@@ -124,7 +130,11 @@ class _HomeScreenState extends State<HomeScreen> {
             return _isEventInRegion(event);
           }).toList();
           if (filteredEvents.isEmpty) {
-            return const Center(child: Text('No events match your filters'));
+            if (_regionNotifier.regions.isNotEmpty || _regionNotifier.rtlEnabled) {
+              return const Center(child: Text('No events match your filters'));
+            } else {
+              return const Center(child: Text('No filters present.\nPlease proceed to setup filters'));
+            }
           }
           return ListView.builder(
             itemCount: filteredEvents.length,
