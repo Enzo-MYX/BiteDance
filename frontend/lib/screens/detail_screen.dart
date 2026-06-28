@@ -9,7 +9,7 @@ class DetailScreen extends StatelessWidget {
     return '${dt.day}/${dt.month}/${dt.year} ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
   }
 
-  // Shows the image in a full‑screen dialog
+  // Display the image in full‑screen
   void _showFullImage(BuildContext context, String assetPath) {
     showDialog(
       context: context,
