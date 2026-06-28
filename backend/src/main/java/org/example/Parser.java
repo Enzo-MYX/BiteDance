@@ -11,8 +11,8 @@ public class Parser {
                     "((?:[a-z]+[0-9]+|utown|(?:\\w+\\s+)*?auditorium)[^,.\\n]*)");
     private static Pattern lineStart = Pattern.compile(
             "(?i)^\\s*((?:[a-z]+[0-9]+|utown)[^,.\n]*)", Pattern.MULTILINE);
-    private static Pattern keyword = Pattern.compile("((?i)\\b(?:LT|AS|MD)\\s?\\d{1,2}\\b|\\butown auditorium\\b)");
-
+    private static Pattern keyword = Pattern.compile("((?i)\\b(?:LT|AS|MD|BIZ|COM|E|S|SDE)\\s?\\d{1,2}\\b|\\butown auditorium\\b)");
+//little adjustments to venues
     public static String parseFromInfo(String text) {
         Matcher m1 = triggerPattern.matcher(text);
         if (m1.find()) {

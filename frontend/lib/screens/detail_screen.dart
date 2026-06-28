@@ -9,18 +9,51 @@ class DetailScreen extends StatelessWidget {
     return '${dt.day}/${dt.month}/${dt.year} ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
   }
 
-  Widget _buildMediaWidget(String url) {
+  // Display the image in full‑screen
+  void _showFullImage(BuildContext context, String assetPath) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        insetPadding: EdgeInsets.zero,
+        backgroundColor: Colors.transparent,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            InteractiveViewer(
+              child: Image.asset(
+                assetPath,
+                fit: BoxFit.contain,
+              ),
+            ),
+            Positioned(
+              top: 40,
+              right: 20,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 32),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMediaWidget(BuildContext context, String url) {
     final fileName = url.split('/').last;
     final assetPath = 'assets/images/$fileName';
 
     final lower = url.toLowerCase();
     if (lower.endsWith('.jpg') || lower.endsWith('.gif')) {
-      return Image.asset(
-        assetPath,
-        fit: BoxFit.cover,
-        height: 220,
-        width: double.infinity,
-        errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 50),
+      return GestureDetector(
+        onTap: () => _showFullImage(context, assetPath),
+        child: Image.asset(
+          assetPath,
+          fit: BoxFit.cover,
+          height: 220,
+          width: double.infinity,
+          errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 50),
+        ),
       );
     } else if (lower.endsWith('.mp4')) {
       return Container(
@@ -68,7 +101,7 @@ class DetailScreen extends StatelessWidget {
 
               const SizedBox(height: 20),
               event.mediaUrls.isNotEmpty
-                  ? _buildMediaWidget(event.mediaUrls.first)
+                  ? _buildMediaWidget(context, event.mediaUrls.first)
                   : Container(
                 height: 220,
                 width: double.infinity,
