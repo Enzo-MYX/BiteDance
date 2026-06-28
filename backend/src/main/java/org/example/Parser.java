@@ -11,27 +11,27 @@ public class Parser {
                     "((?:[a-z]+[0-9]+|utown|(?:\\w+\\s+)*?auditorium)[^,.\\n]*)");
     private static Pattern lineStart = Pattern.compile(
             "(?i)^\\s*((?:[a-z]+[0-9]+|utown)[^,.\n]*)", Pattern.MULTILINE);
-    private static Pattern keyword = Pattern.compile("((?i)\\b(?:LT|AS|MD)\\s?\\d{1,2}\\b|\\butown auditorium\\b)");
+    private static Pattern keyword = Pattern.compile("((?i)\\b(?:LT|AS|MD|BIZ|COM|E|S|SDE)\\s?\\d{1,2}\\b|\\butown auditorium\\b)");
 
     public static String parseFromInfo(String text) {
         Matcher m1 = triggerPattern.matcher(text);
         if (m1.find()) {
-            System.out.println("Sent!");
+            // System.out.println("Display message found!");
             return m1.group(1);
         }
         Matcher m2 = lineStart.matcher(text);
         if (m2.find()) {
-            System.out.println("Sent!");
+            // System.out.println("Display message found!");
             return m2.group(1);
         }
-        System.out.println("Defaulting to keyword reader");
+        // System.out.println("Defaulting to keyword reader");
         return Parser.keywordDetect(text);
     }
 
     public static String keywordDetect(String text) {
         Matcher m = keyword.matcher(text);
         if (m.find()) {
-            System.out.println("Sent!");
+            // System.out.println("Keyword found!");
             return m.group(1); // due to the leniency on spaces such as "LT 13", later versions must process these into names on the map, e.g. "LT13"
         }
         System.out.print("Cannot extract valuable info");
