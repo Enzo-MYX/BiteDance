@@ -9,8 +9,6 @@ import org.telegram.telegrambots.meta.api.methods.GetFile;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.PhotoSize;
 import org.telegram.telegrambots.meta.api.objects.Update;
-import org.telegram.telegrambots.meta.api.objects.Video;
-import org.telegram.telegrambots.meta.api.objects.games.Animation;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
@@ -37,7 +35,7 @@ public class MyBot implements LongPollingSingleThreadUpdateConsumer {
     private void saveEventsToJson(List<Event> events) {
         ObjectMapper mapper = JsonMapper.builder().addModule(new JavaTimeModule()).build();
         try {
-            mapper.writeValue(new File("../frontend/assets/events.json"), events);
+            mapper.writeValue(new File("events.json"), events);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -48,7 +46,7 @@ public class MyBot implements LongPollingSingleThreadUpdateConsumer {
         org.telegram.telegrambots.meta.api.objects.File telegramFile = telegramClient.execute(getFile);
         String uniqueId = fileId.length() > 8 ? fileId.substring(0, 8) : fileId;
         String fileName = chatId + "_" + timestamp + "_" + uniqueId + "." + extension; // formatted in chatId_timestamp_FileId. mp4/jpg/gif
-        Path targetPath = Paths.get("../frontend/assets/images/", fileName);
+        Path targetPath = Paths.get("images/", fileName);
         try (InputStream inputStream = telegramClient.downloadFileAsStream(telegramFile)) {
             Files.createDirectories(targetPath.getParent());
             Files.copy(inputStream, targetPath, StandardCopyOption.REPLACE_EXISTING);
@@ -60,6 +58,7 @@ public class MyBot implements LongPollingSingleThreadUpdateConsumer {
     public void consume(Update update) {
         if (!update.hasMessage()) return;
         Message msg = update.getMessage();
+        if (!msg.hasText() && !msg.hasCaption() && !msg.hasPhoto() && !msg.hasAnimation() && !msg.hasVideo()) return; // blocking out empty updates; temporary fix
         long chatId = msg.getChatId();
         String userName = msg.getFrom().getUserName();
         Long time = msg.getDate().longValue() + 28800L;
