@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import '../models/event.dart';
 import '../services/events_loader.dart';
+import '../services/network_events_loader.dart';
 import '../services/location.dart';
+import 'dart:async';
 import 'detail_screen.dart';
 import 'filter_notification_screen.dart';//transition into notification setting page
 
@@ -27,10 +29,27 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _futureEvents = EventLoader.loadEvents();
+    _loadEvents();
     _initLocation();
     _regionNotifier = RegionNotifier.instance;
     _regionNotifier.addListener(_onRegionChanged);
+    // Auto-refresh every 30 seconds
+    _startAutoRefresh();
+  }
+
+  void _loadEvents() {
+    setState(() {
+      _futureEvents = NetworkEventLoader.fetchEvents();
+    });
+  }
+
+  Timer? _refreshTimer;
+  void _startAutoRefresh() {
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      if (mounted) {
+        _loadEvents();
+      }
+    });
   }
 
   Future<void> _initLocation() async {
@@ -73,6 +92,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _regionNotifier.removeListener(_onRegionChanged);
     super.dispose();
   }
@@ -108,7 +128,15 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         },
       ),//add floating action button on homescreen, transition to notification screen
-      appBar: AppBar(title: const Text('Events')),
+      appBar: AppBar(
+        title: const Text('Events'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadEvents,
+          ),
+        ],
+      ),
       body: FutureBuilder<List<Event>>(
         future: _futureEvents,
         builder: (context, snapshot) {
@@ -136,144 +164,149 @@ class _HomeScreenState extends State<HomeScreen> {
               return const Center(child: Text('No filters present.\nPlease proceed to setup filters'));
             }
           }
-          return ListView.builder(
-            itemCount: filteredEvents.length,
-            itemBuilder: (context, index) {
-              final event = filteredEvents[index];
-              final isFav = _favoriteIds.contains(event.id);
-              String distanceText = '...';
-              if (_currentLat != 0.0 || _currentLon != 0.0) {
-                double dist = Geolocator.distanceBetween(
-                  _currentLat,
-                  _currentLon,
-                  event.lat,
-                  event.lon,
-                );
-                distanceText = dist < 1000
-                    ? '${dist.toStringAsFixed(0)} m'
-                    : '${(dist / 1000).toStringAsFixed(1)} km';
-              }
-              return Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                child: Card(
-                  elevation: 4,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+          return RefreshIndicator(
+            onRefresh: () async {
+              _loadEvents();
+              await _futureEvents;
+            },
+            child: ListView.builder(
+              itemCount: filteredEvents.length,
+              itemBuilder: (context, index) {
+                final event = filteredEvents[index];
+                final isFav = _favoriteIds.contains(event.id);
+                String distanceText = '...';
+                if (_currentLat != 0.0 || _currentLon != 0.0) {
+                  double dist = Geolocator.distanceBetween(
+                    _currentLat,
+                    _currentLon,
+                    event.lat,
+                    event.lon,
+                  );
+                  distanceText = dist < 1000
+                      ? '${dist.toStringAsFixed(0)} m'
+                      : '${(dist / 1000).toStringAsFixed(1)} km';
+                }
+                return Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
                   ),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(16),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => DetailScreen(event: event),
-                        ),
-                      );
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Row(
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: event.mediaUrls.isNotEmpty
-                                ? Image.asset(
-                              'assets/images/${event.mediaUrls.first.split('/').last}',
-                              width: 90,
-                              height: 90,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Container(
+                  child: Card(
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => DetailScreen(event: event),
+                          ),
+                        );
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: event.mediaUrls.isNotEmpty
+                                  ? Image.network(
+                                'http://10.0.2.2:8080${event.mediaUrls.first}',
+                                width: 90,
+                                height: 90,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Container(
+                                  width: 90,
+                                  height: 90,
+                                  color: Colors.grey.shade300,
+                                  child: const Icon(
+                                    Icons.broken_image,
+                                    size: 40,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              )
+                                  : Container(
                                 width: 90,
                                 height: 90,
                                 color: Colors.grey.shade300,
                                 child: const Icon(
-                                  Icons.broken_image,
+                                  Icons.image,
                                   size: 40,
                                   color: Colors.grey,
                                 ),
                               ),
-                            )
-                                : Container(
-                              width: 90,
-                              height: 90,
-                              color: Colors.grey.shade300,
-                              child: const Icon(
-                                Icons.image,
-                                size: 40,
-                                color: Colors.grey,
+                            ),//fits and crops image at center, uses grey default if no image or error
+
+                            const SizedBox(width: 12),
+
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    event.location,
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 6),
+
+                                  const Text(
+                                    "Buffet Event",
+                                    style: TextStyle(
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 12),
+
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.person, size: 16),
+                                      const SizedBox(width: 4),
+                                      Text("User: ${event.uploader}"),
+                                    ],
+                                  ),
+
+                                  const SizedBox(height: 4),
+
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.location_on, size: 16),
+                                      const SizedBox(width: 4),
+                                      Text("Distance: $distanceText"),
+                                    ],
+                                  ),
+                                ],
                               ),
                             ),
-                          ),//fits and crops image at center, uses grey default if no image or error
 
-                          const SizedBox(width: 12),
-
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  event.location,
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-
-                                const SizedBox(height: 6),
-
-                                const Text(
-                                  "Buffet Event",
-                                  style: TextStyle(
-                                    color: Colors.grey,
-                                  ),
-                                ),
-
-                                const SizedBox(height: 12),
-
-                                Row(
-                                  children: [
-                                    const Icon(Icons.person, size: 16),
-                                    const SizedBox(width: 4),
-                                    Text("User: ${event.uploader}"),
-                                  ],
-                                ),
-
-                                const SizedBox(height: 4),
-
-                                Row(
-                                  children: [
-                                    const Icon(Icons.location_on, size: 16),
-                                    const SizedBox(width: 4),
-                                    Text("Distance: $distanceText"),
-                                  ],
-                                ),
-                              ],
+                            IconButton(
+                              icon: Icon(
+                                isFav
+                                    ? Icons.star
+                                    : Icons.star_border,
+                                color: isFav
+                                    ? Colors.amber
+                                    : Colors.grey,
+                              ),
+                              onPressed: () =>
+                                  _toggleFavorite(event.id),
                             ),
-                          ),
-
-                          IconButton(
-                            icon: Icon(
-                              isFav
-                                  ? Icons.star
-                                  : Icons.star_border,
-                              color: isFav
-                                  ? Colors.amber
-                                  : Colors.grey,
-                            ),
-                            onPressed: () =>
-                                _toggleFavorite(event.id),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-              );
-
-            },
+                );
+              },
+            ),
           );
         },
       ),

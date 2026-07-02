@@ -3,6 +3,8 @@ package org.example;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.sun.net.httpserver.HttpServer;
+import com.sun.net.httpserver.HttpExchange;
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer;
 import org.telegram.telegrambots.meta.api.methods.GetFile;
@@ -15,6 +17,7 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -32,10 +35,71 @@ public class MyBot implements LongPollingSingleThreadUpdateConsumer {
         this.telegramClient = new OkHttpTelegramClient(botToken);
     }
 
+    // loads events.json file to https server
+    public void startHttpServer() throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress(8080), 0);
+        server.createContext("/events", exchange -> {
+            try {
+                File jsonFile = new File("events.json");
+                if (!jsonFile.exists()) {
+                    String empty = "[]";
+                    exchange.getResponseHeaders().set("Content-Type", "application/json");
+                    exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+                    exchange.sendResponseHeaders(200, empty.getBytes().length);
+                    exchange.getResponseBody().write(empty.getBytes());
+                    exchange.getResponseBody().close();
+                    return;
+                }
+                byte[] jsonBytes = Files.readAllBytes(jsonFile.toPath());
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+                exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+                exchange.sendResponseHeaders(200, jsonBytes.length);
+                exchange.getResponseBody().write(jsonBytes);
+                exchange.getResponseBody().close();
+            } catch (Exception e) {
+                e.printStackTrace();
+                exchange.sendResponseHeaders(500, -1);
+            }
+        });
+
+        // servers images and other media from the 'images/' folder
+        server.createContext("/images/", exchange -> {
+            String path = exchange.getRequestURI().getPath();
+            try {
+                File imageFile = new File("." + path);
+                if (imageFile.exists() && !imageFile.isDirectory()) {
+                    byte[] imageBytes = Files.readAllBytes(imageFile.toPath());
+                    String contentType = getMimeType(path);
+                    exchange.getResponseHeaders().set("Content-Type", contentType);
+                    exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+                    exchange.sendResponseHeaders(200, imageBytes.length);
+                    exchange.getResponseBody().write(imageBytes);
+                } else {
+                    exchange.sendResponseHeaders(404, -1);
+                }
+                exchange.getResponseBody().close();
+            } catch (Exception e) {
+                e.printStackTrace();
+                exchange.sendResponseHeaders(500, -1);
+            }
+        });
+
+        server.setExecutor(null);
+        server.start();
+        System.out.println("HTTP Server started on port 8080");
+    }
+
+    private String getMimeType(String path) {
+        if (path.endsWith(".jpg")) return "image/jpeg";
+        if (path.endsWith(".gif")) return "image/gif";
+        if (path.endsWith(".mp4")) return "video/mp4";
+        return "application/octet-stream";
+    }
+
     private void saveEventsToJson(List<Event> events) {
         ObjectMapper mapper = JsonMapper.builder().addModule(new JavaTimeModule()).build();
         try {
-            mapper.writeValue(new File("events.json"), events);
+            mapper.writerWithDefaultPrettyPrinter().writeValue(new File("events.json"), events); // Pretty print for more readable output
         } catch (IOException e) {
             e.printStackTrace();
         }
