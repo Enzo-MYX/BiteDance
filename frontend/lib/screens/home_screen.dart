@@ -58,7 +58,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (newIds.isNotEmpty) {
       for (final id in newIds) {
         final event = newEvents.firstWhere((e) => e.hash == id);
-        _showNotifForEvent(event);
+        if (_isEventInRegion(event)) {_showNotifForEvent(event);}
         _previousIds.add(id);
       }
     }
@@ -185,14 +185,12 @@ class _HomeScreenState extends State<HomeScreen> {
           }
           // Data is ready – build the list
           final events = snapshot.data!;
-          final filteredEvents = events.where((event) {
-            return _isEventInRegion(event);
-          }).toList();
+          final filteredEvents = events.where((e) => true).toList(); // Filter system will be divorced from notif system
           if (filteredEvents.isEmpty) {
-            if (_regionNotifier.regions.isNotEmpty || _regionNotifier.rtlEnabled) {
-              return const Center(child: Text('No events match your filters'));
+            if (events.isNotEmpty) {
+              return const Center(child: Text('No events match your filters.'));
             } else {
-              return const Center(child: Text('No filters present.\nPlease proceed to setup filters'));
+              return const Center(child: Text('No events present.'));
             }
           }
           return RefreshIndicator(
