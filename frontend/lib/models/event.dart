@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 
 class Event {
     final int id;
-    final int chatId;
+    final int hash;
     final String uploader;
     final DateTime time;
     final String txt;
@@ -13,7 +13,7 @@ class Event {
 
     Event({
         required this.id,
-        required this.chatId,
+        required this.hash,
         required this.uploader,
         required this.time,
         required this.txt,
@@ -29,7 +29,7 @@ class Event {
 
         return Event(
             id: json['id'] as int,
-            chatId: json['chatId'] as int,
+            hash: json['hash'] as int,
             uploader: json['uploader'] as String,
             time: dateTime,
             txt: json['txt'] as String,
@@ -42,5 +42,5 @@ class Event {
 
     @override
     String toString() =>
-        'Event(chatId: $chatId, userName: $uploader, location: $location, lat: $lat, lon: $lon, mediaUrls: ${mediaUrls.length})';
+        'Event(Code: $hash, userName: $uploader, location: $location, lat: $lat, lon: $lon, mediaUrls: ${mediaUrls.length})';
 }

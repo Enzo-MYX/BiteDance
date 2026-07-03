@@ -10,7 +10,7 @@ import java.util.List;
 public class Event {
     private static int incr = 0;
     public final int id;
-    public final long chatId;
+    public final long hash;
     public final String uploader;
     public final Long time;
     public final String txt;
@@ -18,10 +18,10 @@ public class Event {
     public final String location;
     public final double lat;
     public final double lon;
-    public Event(long chatId, String uploader, Long time, String txt, String loc, Coordinates coords) {
+    public Event(int hash, String uploader, Long time, String txt, String loc, Coordinates coords) {
         this.id = incr;
         incr++;
-        this.chatId = chatId;
+        this.hash = hash;
         this.uploader = uploader;
         this.time = time;
         this.txt = txt;
