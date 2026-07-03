@@ -1,8 +1,8 @@
+import 'package:bitedance/services/notification_service.dart';
 import 'package:bitedance/services/region_notifier.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import '../models/event.dart';
-import '../services/events_loader.dart';
 import '../services/network_events_loader.dart';
 import '../services/location.dart';
 import 'dart:async';
@@ -24,12 +24,14 @@ class _HomeScreenState extends State<HomeScreen> {
   final Location _locationService = Location();
   double _currentLat = 0.0;
   double _currentLon = 0.0;
+  bool _isFirstLoad = true;
+  Set<int> _previousIds = {};
   String _locationStatus = 'Initializing...';//not utilized for now
 
   @override
   void initState() {
     super.initState();
-    _loadEvents();
+    _futureEvents = NetworkEventLoader.fetchEvents();
     _initLocation();
     _regionNotifier = RegionNotifier.instance;
     _regionNotifier.addListener(_onRegionChanged);
@@ -37,10 +39,39 @@ class _HomeScreenState extends State<HomeScreen> {
     _startAutoRefresh();
   }
 
-  void _loadEvents() {
+  void _loadEvents() async {
+    final newEvents = await NetworkEventLoader.fetchEvents();
     setState(() {
       _futureEvents = NetworkEventLoader.fetchEvents();
     });
+    _checkForNewEvents(newEvents);
+  }
+
+  void _checkForNewEvents(List<Event> newEvents) {
+    final ids = newEvents.map((e) => e.hash).toSet();
+    if (_isFirstLoad) {
+      _isFirstLoad = false;
+      _previousIds = ids;
+      return;
+    }
+    final newIds = ids.difference(_previousIds);
+    if (newIds.isNotEmpty) {
+      for (final id in newIds) {
+        final event = newEvents.firstWhere((e) => e.hash == id);
+        _showNotifForEvent(event);
+        _previousIds.add(id);
+      }
+    }
+  }
+
+  void _showNotifForEvent(Event event) {
+    NotificationService.showNotification(
+        id: event.id,
+        title: 'New buffet in ${event.location}!',
+        body: event.txt.length > 50
+            ? (event.txt.substring(0, 50) + '...')
+            : event.txt
+    );
   }
 
   Timer? _refreshTimer;

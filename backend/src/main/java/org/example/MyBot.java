@@ -143,7 +143,7 @@ public class MyBot implements LongPollingSingleThreadUpdateConsumer {
         String keyword = Parser.keywordDetect(messageText);
         String parsed = Parser.keywordDetect(messageText);
         if (keyword != "") {
-            Event event = new Event(chatId, userName, time, messageText, parsed, LocationMapper.getCoordinates(keyword));
+            Event event = new Event(messageText.hashCode(), userName, time, messageText, parsed, LocationMapper.getCoordinates(keyword));
             try {
                 if (msg.getPhoto() != null && !msg.getPhoto().isEmpty()) {
                     PhotoSize photo = msg.getPhoto().get(msg.getPhoto().size() - 1); // for largest resolution
