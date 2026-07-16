@@ -1,7 +1,10 @@
+import 'dart:math';
+
+import 'package:bitedance/screens/filter_screen.dart';
+import 'package:bitedance/services/filter_notifier.dart';
 import 'package:bitedance/services/notification_service.dart';
 import 'package:bitedance/services/region_notifier.dart';
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
 import '../models/event.dart';
 import '../services/network_events_loader.dart';
 import '../services/location.dart';
@@ -20,6 +23,7 @@ class _HomeScreenState extends State<HomeScreen> {
   late Future<List<Event>> _futureEvents;
   Set<int> _favoriteIds = {};
   late RegionNotifier _regionNotifier;
+  late FilterNotifier _filterNotifier;
 
   final Location _locationService = Location();
   double _currentLat = 0.0;
@@ -35,6 +39,8 @@ class _HomeScreenState extends State<HomeScreen> {
     _initLocation();
     _regionNotifier = RegionNotifier.instance;
     _regionNotifier.addListener(_onRegionChanged);
+    _filterNotifier = FilterNotifier.instance;
+    _filterNotifier.addListener(_onFilterChanged);
     // Auto-refresh every 30 seconds
     _startAutoRefresh();
   }
@@ -121,17 +127,22 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {});
   }
 
+  void _onFilterChanged() {
+    setState(() {});
+  }
+
   @override
   void dispose() {
     _refreshTimer?.cancel();
     _regionNotifier.removeListener(_onRegionChanged);
+    _filterNotifier.removeListener(_onFilterChanged);
     super.dispose();
   }
 
   bool _isEventInRegion(Event event) {
     final regions = _regionNotifier.regions;
     for (final region in regions) {
-      double dist = Geolocator.distanceBetween(event.lat, event.lon, region.lat, region.lon);
+      double dist = event.distanceFrom(region.lat, region.lon);
       if (dist <= region.radius) return true;
     }
     return _isEventNearMe(event);
@@ -140,24 +151,61 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isEventNearMe(Event event) {
     if (!_regionNotifier.rtlEnabled) return false;
     if (_currentLat == 0.0 && _currentLon == 0.0) return false;
-    double distance = Geolocator.distanceBetween(_currentLat, _currentLon, event.lat, event.lon);
+    double distance = event.distanceFrom(_currentLat, _currentLon);
     return distance <= _regionNotifier.maxDistance;
+  }
+
+  List<Event> _applyFiltersAndOrder(List<Event> events) {
+    var filtered = List<Event>.from(events);
+
+    if (_filterNotifier.onlyFavorites) {
+      filtered = filtered.where((e) => _favoriteIds.contains(e.id)).toList();
+    }
+    if (_filterNotifier.onlyWatched) {
+      filtered = filtered.where((e) => _isEventInRegion(e)).toList();
+    }
+
+    final now = DateTime.now();
+    filtered = filtered.where((e) {
+      final diff = now.difference(e.time).inSeconds + 28800;
+      return diff <= _filterNotifier.expireTime && diff >= 0;
+    }).toList();
+
+    switch (_filterNotifier.orderBy) {
+      case 'distance':
+        filtered.sort((a, b) => a.distanceFrom(_currentLat, _currentLon)
+            .compareTo(b.distanceFrom(_currentLat, _currentLon)));
+        break;
+      case 'time':
+        filtered.sort((a, b) => b.time.compareTo(a.time));
+        break;
+      default:
+        break;
+    }
+    if (_filterNotifier.reverse && _filterNotifier.orderBy != 'none') {
+      filtered = filtered.reversed.toList();
+    }
+    return filtered;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        child: const Icon(Icons.tune),
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) =>
-              const FilterNotificationScreen(),
-            ),
-          );
-        },
+      floatingActionButton: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            heroTag: 'filter',
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FilterOrderScreen())),
+            child: const Icon(Icons.filter_list),
+          ),
+          const SizedBox(width: 16),
+          FloatingActionButton(
+            heroTag: 'settings',
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FilterNotificationScreen())),
+            child: const Icon(Icons.tune),
+          ),
+        ],
       ),//add floating action button on homescreen, transition to notification screen
       appBar: AppBar(
         title: const Text('Events'),
@@ -185,7 +233,7 @@ class _HomeScreenState extends State<HomeScreen> {
           }
           // Data is ready – build the list
           final events = snapshot.data!;
-          final filteredEvents = events.where((e) => true).toList(); // Filter system will be divorced from notif system
+          final filteredEvents = _applyFiltersAndOrder(events); // Filter system now implemented
           if (filteredEvents.isEmpty) {
             if (events.isNotEmpty) {
               return const Center(child: Text('No events match your filters.'));
@@ -205,12 +253,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 final isFav = _favoriteIds.contains(event.id);
                 String distanceText = '...';
                 if (_currentLat != 0.0 || _currentLon != 0.0) {
-                  double dist = Geolocator.distanceBetween(
-                    _currentLat,
-                    _currentLon,
-                    event.lat,
-                    event.lon,
-                  );
+                  double dist = event.distanceFrom(_currentLat, _currentLon);
                   distanceText = dist < 1000
                       ? '${dist.toStringAsFixed(0)} m'
                       : '${(dist / 1000).toStringAsFixed(1)} km';

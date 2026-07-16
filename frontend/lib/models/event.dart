@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
 
 class Event {
     final int id;
@@ -38,6 +39,10 @@ class Event {
             lon: (json['lon'] as num).toDouble(),
             mediaUrls: (json['mediaUrls'] as List?)?.map((e) => e.toString()).toList() ?? [],
         );
+    }
+
+    double distanceFrom(double lat, double lon) {
+        return Geolocator.distanceBetween(this.lat, this.lon, lat, lon);
     }
 
     @override
