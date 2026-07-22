@@ -40,4 +40,14 @@ class Location {
       },
     );
   }
+
+  Future<Position> getCurrentPosition() async {
+    bool hasPermission = await requestPermission();
+    if (!hasPermission) {
+      throw Exception('Location permission not granted');
+    }
+    return await Geolocator.getCurrentPosition(
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high)
+    );
+  }
 }

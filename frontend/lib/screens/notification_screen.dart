@@ -1,8 +1,14 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:flutter/services.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import '../services/location.dart';
 import '../services/region_notifier.dart';
 import '../models/region.dart';
+import 'map_picker_screen.dart';
 
 class FilterNotificationScreen extends StatefulWidget {
   const FilterNotificationScreen({super.key});
@@ -256,6 +262,22 @@ class _FilterNotificationScreenState extends State<FilterNotificationScreen> {
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setState) {
+            LatLng? pickedLocation;
+            final locationService = Location();
+            void _getCurrentLocation() async {
+              try {
+                Position position = await locationService.getCurrentPosition();
+                setState(() {
+                  pickedLocation = LatLng(position.latitude, position.longitude);
+                  latController.text = position.latitude.toString();
+                  lonController.text = position.longitude.toString();
+                });
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Failed to get location: $e')),
+                );
+              }
+            }
             return AlertDialog(
               title: const Text('Add Region'),
               content: Form(
@@ -329,6 +351,55 @@ class _FilterNotificationScreenState extends State<FilterNotificationScreen> {
                               labelText: 'Name'
                           ),
                         ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: _getCurrentLocation,
+                                icon: const Icon(Icons.gps_fixed),
+                                label: const Text('Fetch current location'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue.shade100,
+                                  foregroundColor: Colors.blue.shade800,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: () async {
+                                  final result = await Navigator.push<LatLng>(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => const MapPickerScreen()),
+                                  );
+                                  if (result != null) {
+                                    setState(() {
+                                      pickedLocation = result;
+                                      latController.text = result.latitude.toString();
+                                      lonController.text = result.longitude.toString();
+                                    });
+                                  }
+                                },
+                                icon: const Icon(Icons.map),
+                                label: const Text('Select on map'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green.shade100,
+                                  foregroundColor: Colors.green.shade800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (pickedLocation != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8.0),
+                            child: Text(
+                              'Picked: ${pickedLocation!.latitude.toStringAsFixed(4)}, '
+                                  '${pickedLocation!.longitude.toStringAsFixed(4)}',
+                              style: const TextStyle(color: Colors.green, fontSize: 12),
+                            ),
+                          ),
                       ] else ...[
                         // Preset loader
                         if (!_presetsLoaded)

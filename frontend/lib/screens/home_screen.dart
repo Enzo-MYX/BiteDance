@@ -10,7 +10,7 @@ import '../services/network_events_loader.dart';
 import '../services/location.dart';
 import 'dart:async';
 import 'detail_screen.dart';
-import 'filter_notification_screen.dart';//transition into notification setting page
+import 'notification_screen.dart';//transition into notification setting page
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
