@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'settings_saver.dart';
 
 class FilterNotifier extends ChangeNotifier {
   static final FilterNotifier instance = FilterNotifier();
@@ -16,26 +17,31 @@ class FilterNotifier extends ChangeNotifier {
   void toggleFilterByFavs() {
     onlyFavorites = !onlyFavorites;
     notifyListeners();
+    SettingsSaver.saveAll();
   }
 
   void toggleOnlyWatched() {
     onlyWatched = !onlyWatched;
     notifyListeners();
+    SettingsSaver.saveAll();
   }
 
   void toggleSortByDistance() {
     orderBy = orderBy == 'distance' ? 'none' : 'distance';
     notifyListeners();
+    SettingsSaver.saveAll();
   }
 
   void toggleSortByTime() {
     orderBy = orderBy == 'time' ? 'none' : 'time';
     notifyListeners();
+    SettingsSaver.saveAll();
   }
 
   void setExpireTime(double value) {
     expireTime = value;
     notifyListeners();
+    SettingsSaver.saveAll();
   }
 
   void setTimeSelect(String mode, {double? number, String? unit}) {
@@ -45,11 +51,13 @@ class FilterNotifier extends ChangeNotifier {
       if (unit != null) customUnit = unit;
     }
     notifyListeners();
+    SettingsSaver.saveAll();
   }
 
   void toggleRev() {
     reverse = !reverse;
     notifyListeners();
+    SettingsSaver.saveAll();
   }
 
   void resetFilters() {
@@ -62,5 +70,6 @@ class FilterNotifier extends ChangeNotifier {
     orderBy = 'none';
     reverse = false;
     notifyListeners();
+    SettingsSaver.saveAll();
   }
 }

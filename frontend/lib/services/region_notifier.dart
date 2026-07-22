@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/region.dart';
+import 'settings_saver.dart';
 
 class RegionNotifier extends ChangeNotifier {
   static final RegionNotifier instance = RegionNotifier();
@@ -14,12 +15,14 @@ class RegionNotifier extends ChangeNotifier {
   void addRegion(Region region) {
     _watch_regions.add(region);
     notifyListeners();
+    SettingsSaver.saveAll();
   }
 
   void removeRegionAt(int index) {
     if (index >= 0 && index < _watch_regions.length) {
       _watch_regions.removeAt(index);
       notifyListeners();
+      SettingsSaver.saveAll();
     }
   }
 
@@ -28,11 +31,13 @@ class RegionNotifier extends ChangeNotifier {
     final old = _watch_regions[index];
     _watch_regions[index] = old.copyWith(radius: newRadius); // Immutable design for the regions
     notifyListeners();
+    SettingsSaver.saveAll();
   }
 
   void clearRegions() {
     _watch_regions.clear();
     notifyListeners();
+    SettingsSaver.saveAll();
   }
 
   void setRegions(List<Region> newRegions) {
@@ -44,6 +49,7 @@ class RegionNotifier extends ChangeNotifier {
     if (_rtlEnabled != value) {
       _rtlEnabled = value;
       notifyListeners();
+      SettingsSaver.saveAll();
     }
   }
 
@@ -51,6 +57,7 @@ class RegionNotifier extends ChangeNotifier {
     if (_maxDistance != value) {
       _maxDistance = value;
       notifyListeners();
+      SettingsSaver.saveAll();
     }
   }
 }
