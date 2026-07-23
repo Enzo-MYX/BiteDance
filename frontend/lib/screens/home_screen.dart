@@ -146,6 +146,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (dist <= region.radius) return true;
     }
     return _isEventNearMe(event);
+    return _isEventNearMe(event);
   }
 
   bool _isEventNearMe(Event event) {
@@ -286,7 +287,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               borderRadius: BorderRadius.circular(12),
                               child: event.mediaUrls.isNotEmpty
                                   ? Image.network(
-                                'http://10.0.2.2:8080${event.mediaUrls.first}',
+                                'http://3.27.216.9:8080${event.mediaUrls.first}',
                                 width: 90,
                                 height: 90,
                                 fit: BoxFit.cover,

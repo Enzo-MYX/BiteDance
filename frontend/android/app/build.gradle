@@ -24,6 +24,10 @@ android {
         coreLibraryDesugaringEnabled = true
     }
 
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
     defaultConfig {
         applicationId = "com.example.BiteDance"
         minSdk = 24
@@ -35,6 +39,12 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.debug
+        }
+
+        debug {
+            lintOptions {
+                abortOnError = false
+            }
         }
     }
 }

@@ -1,30 +1,62 @@
 import 'package:flutter/material.dart';
 import '../models/event.dart';
 
-class DetailScreen extends StatelessWidget {
+const String baseUrl = 'http://3.27.216.9:8080';
+class DetailScreen extends StatefulWidget {
   final Event event;
   const DetailScreen({super.key, required this.event});
+
+  @override
+  State<DetailScreen> createState() => _DetailScreenState();
+}
+
+class _DetailScreenState extends State<DetailScreen> {
+  late PageController _pageController;
+  int _currentPage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   String _formatDateTime(DateTime dt) {
     return '${dt.day}/${dt.month}/${dt.year} ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
   }
 
   // Display the image in full‑screen
-  void _showFullImage(BuildContext context, String assetPath) {
+  void _showFullImageCarousel(List<String> urls, int initialIndex) {
     showDialog(
       context: context,
       builder: (_) => Dialog(
         insetPadding: EdgeInsets.zero,
         backgroundColor: Colors.transparent,
         child: Stack(
-          fit: StackFit.expand,
           children: [
-            InteractiveViewer(
-              child: Image.asset(
-                assetPath,
-                fit: BoxFit.contain,
-              ),
+            PageView.builder(
+              controller: PageController(initialPage: initialIndex),
+              itemCount: urls.length,
+              itemBuilder: (ctx, index) {
+                return InteractiveViewer(
+                  child: Image.network(
+                    baseUrl + urls[index],
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => const Icon(
+                      Icons.broken_image,
+                      size: 80,
+                      color: Colors.white,
+                    ),
+                  ),
+                );
+              },
             ),
+            // Close button
             Positioned(
               top: 40,
               right: 20,
@@ -39,51 +71,83 @@ class DetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildMediaWidget(BuildContext context, String url) {
-    final fileName = url.split('/').last;
-    final assetPath = 'assets/images/$fileName';
+  Widget _buildMediaCarousel() {
+    final urls = widget.event.mediaUrls;
 
-    final lower = url.toLowerCase();
-    if (lower.endsWith('.jpg') || lower.endsWith('.gif')) {
-      return GestureDetector(
-        onTap: () => _showFullImage(context, assetPath),
-        child: Image.asset(
-          assetPath,
-          fit: BoxFit.cover,
-          height: 220,
-          width: double.infinity,
-          errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 50),
-        ),
-      );
-    } else if (lower.endsWith('.mp4')) {
+    if (urls.isEmpty) {
       return Container(
         height: 220,
         width: double.infinity,
-        color: Colors.grey[300],
+        decoration: BoxDecoration(
+          color: Colors.grey.shade300,
+          borderRadius: BorderRadius.circular(16),
+        ),
         child: const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.play_circle_filled, size: 50, color: Colors.blue),
-              SizedBox(height: 8),
-              Text('Video (unsupported in this demo)'),
-            ],
-          ),
+          child: Icon(Icons.image, size: 80, color: Colors.grey),
         ),
       );
-    } else {
-      return Container(
-        padding: const EdgeInsets.all(8),
-        color: Colors.grey[200],
-        child: Text('Unsupported: $url'),
-      );
     }
+
+    return SizedBox(
+      height: 220,
+      width: double.infinity,
+      child: Stack(
+        children: [
+          // Swipeable image gallery
+          PageView.builder(
+            controller: _pageController,
+            itemCount: urls.length,
+            onPageChanged: (index) {
+              setState(() {
+                _currentPage = index;
+              });
+            },
+            itemBuilder: (context, index) {
+              return GestureDetector(
+                onTap: () => _showFullImageCarousel(urls, index),
+                child: Image.network(
+                  baseUrl + urls[index],
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  errorBuilder: (_, __, ___) => const Icon(
+                    Icons.broken_image,
+                    size: 50,
+                  ),
+                ),
+              );
+            },
+          ),
+          if (urls.length > 1)
+            Positioned(
+              bottom: 8,
+              left: 0,
+              right: 0,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(urls.length, (index) {
+                  return Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _currentPage == index
+                          ? Colors.white
+                          : Colors.white.withValues(alpha: 0.4),
+                    ),
+                  );
+                }),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(event.location)),
+      appBar: AppBar(title: Text(widget.event.location)),
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -92,7 +156,7 @@ class DetailScreen extends StatelessWidget {
             children: [
 
               Text(
-                "${event.location} Buffet",
+                "${widget.event.location} Buffet",
                 style: const TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.bold,
@@ -100,23 +164,7 @@ class DetailScreen extends StatelessWidget {
               ),
 
               const SizedBox(height: 20),
-              event.mediaUrls.isNotEmpty
-                  ? _buildMediaWidget(context, event.mediaUrls.first)
-                  : Container(
-                height: 220,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Center(
-                  child: Icon(
-                    Icons.image,
-                    size: 80,
-                    color: Colors.grey,
-                  ),
-                ),
-              ),
+              _buildMediaCarousel(),
 
               const SizedBox(height: 24),
 
@@ -129,14 +177,14 @@ class DetailScreen extends StatelessWidget {
                     children: [
 
                       Text(
-                        "Uploader: ${event.uploader}",
+                        "Uploader: ${widget.event.uploader}",
                         style: TextStyle(fontSize: 16),
                       ),
 
                       SizedBox(height: 10),
 
                       Text(
-                        "Time: ${_formatDateTime(event.time)}",
+                        "Time: ${_formatDateTime(widget.event.time)}",
                         style: TextStyle(fontSize: 16),
                       ),
                     ],
@@ -160,7 +208,7 @@ class DetailScreen extends StatelessWidget {
                 child: Padding(
                   padding: EdgeInsets.all(16),
                   child: Text(
-                    event.txt,
+                    widget.event.txt,
                     style: TextStyle(fontSize: 16),
                   ),
                 ),

@@ -28,4 +28,34 @@
   "lon" : 103.7805858,
   "mediaUrls" : [ "/images/-1003988157232_1784283609_AgACAgUA.jpg" ],
   "location" : "S17"
+}, {
+  "id" : 3,
+  "hash" : 461282054,
+  "uploader" : "bloodgodjunior",
+  "time" : 1784808419,
+  "txt" : "basic test LT13",
+  "lat" : 1.2950694,
+  "lon" : 103.7709063,
+  "mediaUrls" : [ ],
+  "location" : "LT13"
+}, {
+  "id" : 4,
+  "hash" : 2346533,
+  "uploader" : "bloodgodjunior",
+  "time" : 1784808454,
+  "txt" : "LT52\n----------\nguys there's food",
+  "lat" : 1.304231,
+  "lon" : 103.772776,
+  "mediaUrls" : [ ],
+  "location" : "LT52"
+}, {
+  "id" : 5,
+  "hash" : -1124368296,
+  "uploader" : "bloodgodjunior",
+  "time" : 1784823250,
+  "txt" : "local multimedia test\nstill images only multimedia SDE3",
+  "lat" : 1.2979724,
+  "lon" : 103.770561,
+  "mediaUrls" : [ "/images/-1003988157232_1784823250_AgACAgUA.jpg", "/images/-1003988157232_1784823250_AgACAgUA.jpg", "/images/-1003988157232_1784823250_AgACAgUA.jpg" ],
+  "location" : "SDE3"
 } ]
