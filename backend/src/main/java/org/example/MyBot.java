@@ -23,6 +23,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -189,10 +190,20 @@ public class MyBot implements LongPollingSingleThreadUpdateConsumer {
         return urls;
     }
 
+    private static final String ALPHANUMERIC="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    private static final SecureRandom RANDOM=new SecureRandom();
+    public static String randomAlphanumeric(int length) {
+        StringBuilder sb = new StringBuilder(length);
+        for (int i=0; i<length; i++) {
+            sb.append(ALPHANUMERIC.charAt(RANDOM.nextInt(ALPHANUMERIC.length())));
+        }
+        return sb.toString();
+    }
+
     private String downloadMedia(String fileId, String extension, long chatId, long timestamp) throws TelegramApiException, IOException {
         GetFile getFile = GetFile.builder().fileId(fileId).build();
         org.telegram.telegrambots.meta.api.objects.File telegramFile = telegramClient.execute(getFile);
-        String uniqueId = fileId.length() > 8 ? fileId.substring(0, 8) : fileId;
+        String uniqueId = randomAlphanumeric(8);
         String fileName = chatId + "_" + timestamp + "_" + uniqueId + "." + extension; // formatted in chatId_timestamp_FileId. mp4/jpg/gif
         Path targetPath = Paths.get("images/", fileName);
         try (InputStream inputStream = telegramClient.downloadFileAsStream(telegramFile)) {
