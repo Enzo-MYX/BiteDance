@@ -50,4 +50,13 @@ public class Event {
         if (other == null) return false;
         return Math.abs(other.time - this.time) <= 300 && distanceTo(other) <= 100;
     }
+
+    public void merge(String text, List<String> mediaUrls) {
+        if (text != null && !text.isEmpty()) {
+            this.txt += "\n----------\n" + text;
+        }
+        if (mediaUrls != null) {
+            this.mediaUrls.addAll(mediaUrls);
+        }
+    }
 }

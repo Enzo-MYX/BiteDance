@@ -36,38 +36,15 @@ public class MyBot implements LongPollingSingleThreadUpdateConsumer {
     private final Map<String, Integer> latestEventIndex = new HashMap<>();
     private final Map<String, List<BufferedMessage>> messageBuffer = new HashMap<>();
 
-    private static class MediaReference {
-        final String fileId;
-        final String type; // "photo", "video", "animation"
-        final long chatId;
-        final long timestamp;
-
-        MediaReference(String fileId, String type, long chatId, long timestamp) {
-            this.fileId = fileId;
-            this.type = type;
-            this.chatId = chatId;
-            this.timestamp = timestamp;
-        }
-    }
-
-    private static class BufferedMessage {
-        final String text;
-        final List<MediaReference> mediaRefs;
-        final long timestamp;
-
-        BufferedMessage(String text, List<MediaReference> mediaRefs, long timestamp) {
-            this.text = text;
-            this.mediaRefs = new ArrayList<>(mediaRefs);
-            this.timestamp = timestamp;
-        }
-    }
-
     public MyBot(String botToken) {
         this.botToken = botToken;
         this.telegramClient = new OkHttpTelegramClient(botToken);
         this.eventsList = loadEventsFromJson();
         rebuildIndexMap();
     }
+
+    private record MessageContext(long chatId, String userName, long time, String text, List<MediaReference> mediaRefs,
+                                  String keyword, String parsedLocation) {}
 
     // loads events.json file to https server
     public void startHttpServer() throws IOException {
@@ -158,16 +135,25 @@ public class MyBot implements LongPollingSingleThreadUpdateConsumer {
         }
     }
 
-    private void addEvent(Event event, String msg) {
+    private void addEvent(Event event) {
         eventsList.add(event);
         latestEventIndex.put(event.uploader, event.id);
         saveEventsToJson(eventsList);
-        System.out.println("Sent! Parsed location:" + msg);
     }
 
     private Event getLatestEvent(String userName) {
         Integer idx = latestEventIndex.get(userName);
         return idx == null ? null : eventsList.get(idx);
+    }
+
+    private static final String ALPHANUMERIC="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    private static final SecureRandom RANDOM=new SecureRandom();
+    public static String randomAlphanumeric(int length) {
+        StringBuilder sb = new StringBuilder(length);
+        for (int i=0; i<length; i++) {
+            sb.append(ALPHANUMERIC.charAt(RANDOM.nextInt(ALPHANUMERIC.length())));
+        }
+        return sb.toString();
     }
 
     private List<String> downloadMediaRefs(List<MediaReference> refs) {
@@ -190,16 +176,6 @@ public class MyBot implements LongPollingSingleThreadUpdateConsumer {
         return urls;
     }
 
-    private static final String ALPHANUMERIC="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    private static final SecureRandom RANDOM=new SecureRandom();
-    public static String randomAlphanumeric(int length) {
-        StringBuilder sb = new StringBuilder(length);
-        for (int i=0; i<length; i++) {
-            sb.append(ALPHANUMERIC.charAt(RANDOM.nextInt(ALPHANUMERIC.length())));
-        }
-        return sb.toString();
-    }
-
     private String downloadMedia(String fileId, String extension, long chatId, long timestamp) throws TelegramApiException, IOException {
         GetFile getFile = GetFile.builder().fileId(fileId).build();
         org.telegram.telegrambots.meta.api.objects.File telegramFile = telegramClient.execute(getFile);
@@ -213,16 +189,129 @@ public class MyBot implements LongPollingSingleThreadUpdateConsumer {
         return "/images/" + fileName;
     }
 
-    @Override
-    public void consume(Update update) {
-        if (!update.hasMessage()) return;
-        Message msg = update.getMessage();
-        if (!msg.hasText() && !msg.hasCaption() && !msg.hasPhoto() && !msg.hasAnimation() && !msg.hasVideo()) return; // blocking out empty updates; temporary fix
+    private MessageContext extractMessageContext(Message msg) {
         long chatId = msg.getChatId();
         String userName = msg.getFrom().getUserName();
         Long time = msg.getDate().longValue() + 28800L;
 
         String messageText = msg.hasText() ? msg.getText() : msg.getCaption();
+        boolean hasWord = messageText != null;
+        String keyword = hasWord ? Parser.keywordDetect(messageText) : "";
+        String parsed = hasWord ? Parser.parseFromInfo(messageText) : "";
+
+        List<MediaReference> mediaRefs = new ArrayList<>();
+        if (msg.getPhoto() != null && !msg.getPhoto().isEmpty()) {
+            PhotoSize photo = msg.getPhoto().get(msg.getPhoto().size() - 1);
+            mediaRefs.add(new MediaReference(photo.getFileId(), "photo", chatId, time));
+        }
+        if (msg.getVideo() != null) {
+            mediaRefs.add(new MediaReference(msg.getVideo().getFileId(), "video", chatId, time));
+        }
+        if (msg.getAnimation() != null) {
+            mediaRefs.add(new MediaReference(msg.getAnimation().getFileId(), "animation", chatId, time));
+        }
+
+        return new MessageContext(chatId, userName, time, messageText, mediaRefs, keyword, parsed);
+    }
+
+    private void processBufferedMessages(String username, Event targetEvent, long currentTime) {
+        List<BufferedMessage> buffers = messageBuffer.getOrDefault(username, new ArrayList<>());
+        for (BufferedMessage bm : buffers) {
+            long diff = currentTime - bm.timestamp;
+            if (diff >= 0 && diff <= 900) {
+                List<String> urls = downloadMediaRefs(bm.mediaRefs);
+                targetEvent.merge(bm.text, urls);
+            }
+            buffers.clear();
+            messageBuffer.remove(username);
+        }
+    }
+
+    private void handleLocationMessage(MessageContext ctx) {
+        Coordinates coords = LocationMapper.getCoordinates(ctx.keyword);
+        Event newEvent = new Event(eventsList.size(),
+                ctx.text.hashCode(),
+                ctx.userName,
+                ctx.time,
+                ctx.text,
+                ctx.parsedLocation,
+                coords.getLat(),
+                coords.getLon(),
+                new ArrayList<>());
+
+        Event existing = getLatestEvent(ctx.userName);
+        Event target;
+        boolean merged;
+
+        if (existing != null && newEvent.isSameEvent(existing)) {
+            List<String> urls = downloadMediaRefs(ctx.mediaRefs);
+            existing.merge(ctx.text, urls);
+            target = existing;
+            merged = true;
+        } else {
+            List<String> urls = downloadMediaRefs(ctx.mediaRefs);
+            newEvent.mediaUrls.addAll(urls);
+            addEvent(newEvent);
+            target = newEvent;
+            merged = false;
+        }
+        processBufferedMessages(ctx.userName, target, ctx.time);
+        saveEventsToJson(eventsList);
+        System.out.println("Processed event for " + ctx.userName + (merged ? " (merged)" : " (new)"));
+    }
+
+    private void handleNonLocationMessage(MessageContext ctx) {
+        Event recent = getLatestEvent(ctx.userName);
+        if (recent != null && (ctx.time - recent.time <= 900)) {//merge into recent event
+            List<String> urls = downloadMediaRefs(ctx.mediaRefs);
+            recent.merge(ctx.text, urls);
+            saveEventsToJson(eventsList);
+            System.out.println("Merged non‑event message into recent event of " + ctx.userName);
+        } else {//buffer the message
+            BufferedMessage bm = new BufferedMessage(ctx.text, ctx.mediaRefs, ctx.time);
+            messageBuffer.computeIfAbsent(ctx.userName, k -> new ArrayList<>()).add(bm);
+            System.out.println("Buffered message from " + ctx.userName);
+        }
+    }
+
+    private void handleEditedMessage(Message msg) {
+        String userName = msg.getFrom().getUserName();
+        long time = msg.getDate().longValue() + 28800L;
+        long chatId = msg.getChatId();
+        Event recent = getLatestEvent(userName);
+        if (recent==null||time-recent.time>86400) {
+            System.out.println("Too late! Discarded message because no recent event");
+            return;
+        }
+        String messageText = msg.hasText() ? msg.getText() : msg.getCaption();
+        if (messageText==null||messageText.isEmpty()) return;
+        List<MediaReference> mediaRefs = new ArrayList<>();
+        if (msg.getPhoto() != null && !msg.getPhoto().isEmpty()) {
+            PhotoSize photo = msg.getPhoto().get(msg.getPhoto().size() - 1);
+            mediaRefs.add(new MediaReference(photo.getFileId(), "photo", chatId, time));
+        }
+        if (msg.getVideo() != null) {
+            mediaRefs.add(new MediaReference(msg.getVideo().getFileId(), "video", chatId, time));
+        }
+        if (msg.getAnimation() != null) {
+            mediaRefs.add(new MediaReference(msg.getAnimation().getFileId(), "animation", chatId, time));
+        }
+        List<String> urls = downloadMediaRefs(mediaRefs);
+        String mergeText = "Edited: " + messageText;
+        recent.merge(mergeText, urls);
+        saveEventsToJson(eventsList);
+        System.out.println("Merged edited message into event by " + userName);
+    }
+
+    @Override
+    public void consume(Update update) {
+        if (update.hasEditedMessage()) {
+            handleEditedMessage(update.getEditedMessage());
+            return;
+        }
+        if (!update.hasMessage()) return;
+        Message msg = update.getMessage();
+        if (!msg.hasText() && !msg.hasCaption() && !msg.hasPhoto() && !msg.hasAnimation() && !msg.hasVideo()) return; // blocking out empty updates; temporary fix
 //        if ("/start".equals(messageText)) {
 //            String welcomeText = String.format("Hello @%s! Enter /help to see the list of commands for this bot.", userName);
 //            SendMessage message = SendMessage.builder()
@@ -235,80 +324,11 @@ public class MyBot implements LongPollingSingleThreadUpdateConsumer {
 //                e.printStackTrace();
 //            }
 //        }
-        boolean hasWord = messageText != null;
-        String keyword = hasWord ? Parser.keywordDetect(messageText) : "";
-        String parsed = hasWord ? Parser.parseFromInfo(messageText) : "";
-        List<MediaReference> mediaRefs = new ArrayList<>();
-        if (msg.getPhoto() != null && !msg.getPhoto().isEmpty()) {
-            PhotoSize photo = msg.getPhoto().get(msg.getPhoto().size() - 1);
-            mediaRefs.add(new MediaReference(photo.getFileId(), "photo", chatId, time));
-        }
-        if (msg.getVideo() != null) {
-            mediaRefs.add(new MediaReference(msg.getVideo().getFileId(), "video", chatId, time));
-        }
-        if (msg.getAnimation() != null) {
-            mediaRefs.add(new MediaReference(msg.getAnimation().getFileId(), "animation", chatId, time));
-        }
-        java.util.function.BiConsumer<Event, List<MediaReference>> mergeContent = (event, refs) -> {
-            if (messageText != null && !messageText.isEmpty()) {
-                event.txt += "\n----------\n" + messageText;
-            }
-            List<String> urls = downloadMediaRefs(refs);
-            event.mediaUrls.addAll(urls);
-        };
-
-        if (keyword != "") { // The case for messages w/ location indicators
-            Coordinates coords = LocationMapper.getCoordinates(keyword);
-            Event newEvent = new Event(eventsList.size(), messageText.hashCode(), userName, time, messageText, parsed, coords.getLat(), coords.getLon(), new ArrayList<>());
-            // Check for recent event from same user (5 min, 100m)
-            Event existing = getLatestEvent(userName);
-            boolean merged = false;
-            if (newEvent.isSameEvent(existing)) {
-                existing.txt += "\n----------\n" + messageText;
-                List<String> urls = downloadMediaRefs(mediaRefs);
-                existing.mediaUrls.addAll(urls);
-                merged = true;
-            } else {
-                List<String> urls = downloadMediaRefs(mediaRefs);
-                newEvent.mediaUrls.addAll(urls);
-                addEvent(newEvent, keyword);
-            }
-            Event targetEvent = merged ? existing : newEvent;
-
-            // Compiling possible bufferMessages to the new event
-            List<BufferedMessage> buffers = messageBuffer.getOrDefault(userName, new ArrayList<>());
-            List<BufferedMessage> toRemove = new ArrayList<>();
-            for (BufferedMessage bm : buffers) {
-                if (time - bm.timestamp <= 900 && time - bm.timestamp >= 0) {
-                    if (bm.text != null && !bm.text.isEmpty()) {
-                        targetEvent.txt += "\n----------\n" + bm.text;
-                    }
-                    List<String> urls = downloadMediaRefs(bm.mediaRefs);
-                    targetEvent.mediaUrls.addAll(urls);
-                    toRemove.add(bm);
-                }
-            }
-            buffers.removeAll(toRemove);
-            if (buffers.isEmpty()) {
-                messageBuffer.remove(userName);
-            } else {
-                messageBuffer.put(userName, buffers);
-            }
-            // Save after all merges
-            saveEventsToJson(eventsList);
-            System.out.println("Processed event for " + userName + (merged ? " (merged)" : " (new)"));
+        MessageContext ctx = extractMessageContext(msg);
+        if (!ctx.keyword.isEmpty()) {
+            handleLocationMessage(ctx);
         } else {
-            // The case for messages w/o locations or media only
-            Event recent = getLatestEvent(userName);
-            if (recent != null && (time - recent.time <= 900)) {
-                mergeContent.accept(recent, mediaRefs);
-                saveEventsToJson(eventsList);
-                System.out.println("Merged non‑event message into recent event of " + userName);
-            } else {
-                BufferedMessage bm = new BufferedMessage(messageText, mediaRefs, time);
-                messageBuffer.computeIfAbsent(userName, k -> new ArrayList<>()).add(bm);
-                System.out.println("Buffered message from " + userName);
-            }
+            handleNonLocationMessage(ctx);
         }
     }
 }

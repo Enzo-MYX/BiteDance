@@ -89,7 +89,7 @@ class _FilterNotificationScreenState extends State<FilterNotificationScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Filter & Notification"),
+        title: const Text("Notification Settings"),
         actions: [
           // Reload button
           IconButton(
