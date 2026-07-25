@@ -1,71 +1,31 @@
 [ {
   "id" : 0,
-  "hash" : 641525795,
+  "hash" : 75689,
   "uploader" : "bloodgodjunior",
-  "time" : 1784244682,
-  "txt" : "mpt\nLT13\n----------\nmpt\nLT13",
-  "lat" : 1.2950694,
-  "lon" : 103.7709063,
+  "time" : 1784981348,
+  "txt" : "LT1\n----------\nbuffered message\n----------\nEdited: buffered massage",
+  "lat" : 1.2994779,
+  "lon" : 103.771314,
   "mediaUrls" : [ ],
-  "location" : "LT13"
+  "location" : "LT1"
 }, {
   "id" : 1,
-  "hash" : 540398460,
+  "hash" : 1542228800,
   "uploader" : "bloodgodjunior",
-  "time" : 1784283498,
-  "txt" : "memory test\nLT50",
-  "lat" : 1.304244,
-  "lon" : 103.772982,
-  "mediaUrls" : [ ],
-  "location" : "LT50"
+  "time" : 1784981598,
+  "txt" : "media test LT17\n----------\nEdited: media text LT17\n----------\nEdited: media text LT17",
+  "lat" : 1.2936062,
+  "lon" : 103.7740111,
+  "mediaUrls" : [ "/images/-1003988157232_1784981598_dfd50544ef2496ae5b61ae9552907f7d3ffca5638c32b5997aab20374e867c71.jpg", "/images/-1003988157232_1784981598_84a55df80701100bd6bc1e11ec02693516641cde637acf2ffaf60c9558fc0bff.jpg" ],
+  "location" : "LT17"
 }, {
   "id" : 2,
-  "hash" : 1285312586,
+  "hash" : 1503276652,
   "uploader" : "bloodgodjunior",
-  "time" : 1784283523,
-  "txt" : "second message\nS17\n----------\nbuffer merge test",
-  "lat" : 1.297733,
-  "lon" : 103.7805858,
-  "mediaUrls" : [ "/images/-1003988157232_1784283609_AgACAgUA.jpg" ],
-  "location" : "S17"
-}, {
-  "id" : 3,
-  "hash" : 461282054,
-  "uploader" : "bloodgodjunior",
-  "time" : 1784808419,
-  "txt" : "basic test LT13",
-  "lat" : 1.2950694,
-  "lon" : 103.7709063,
-  "mediaUrls" : [ ],
-  "location" : "LT13"
-}, {
-  "id" : 4,
-  "hash" : 2346533,
-  "uploader" : "bloodgodjunior",
-  "time" : 1784808454,
-  "txt" : "LT52\n----------\nguys there's food",
+  "time" : 1784982405,
+  "txt" : "event at LT52\n----------\nanother event at LT50\n----------\nEvent at LT50 with an image",
   "lat" : 1.304231,
   "lon" : 103.772776,
-  "mediaUrls" : [ ],
+  "mediaUrls" : [ "/images/-1003988157232_1784982447_65bcc7ac79bd33ccef9df7afc7cfde2113e2b81a17205f5445cc308754ff7cca.gif" ],
   "location" : "LT52"
-}, {
-  "id" : 5,
-  "hash" : -1124368296,
-  "uploader" : "bloodgodjunior",
-  "time" : 1784823250,
-  "txt" : "local multimedia test\nstill images only multimedia SDE3",
-  "lat" : 1.2979724,
-  "lon" : 103.770561,
-  "mediaUrls" : [ "/images/-1003988157232_1784823250_AgACAgUA.jpg", "/images/-1003988157232_1784823250_AgACAgUA.jpg", "/images/-1003988157232_1784823250_AgACAgUA.jpg" ],
-  "location" : "SDE3"
-}, {
-  "id" : 6,
-  "hash" : -99910429,
-  "uploader" : "bloodgodjunior",
-  "time" : 1784905491,
-  "txt" : "multimedia test LT13",
-  "lat" : 1.2950694,
-  "lon" : 103.7709063,
-  "mediaUrls" : [ "/images/-1003988157232_1784905491_l8frXf6j.jpg", "/images/-1003988157232_1784905491_zDYnnxL6.jpg", "/images/-1003988157232_1784905491_4DJ6Jge5.jpg" ],
-  "location" : "LT13"
 } ]

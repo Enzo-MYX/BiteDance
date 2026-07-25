@@ -5,11 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.sun.net.httpserver.HttpServer;
-import com.sun.net.httpserver.HttpExchange;
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer;
 import org.telegram.telegrambots.meta.api.methods.GetFile;
-import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.PhotoSize;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
@@ -19,11 +17,13 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.security.SecureRandom;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -45,6 +45,32 @@ public class MyBot implements LongPollingSingleThreadUpdateConsumer {
 
     private record MessageContext(long chatId, String userName, long time, String text, List<MediaReference> mediaRefs,
                                   String keyword, String parsedLocation) {}
+
+    private static class MediaReference {
+        public final String fileId;
+        public final String type;
+        public final long chatId;
+        public final long timestamp;
+
+        MediaReference(String fileId, String type, long chatId, long timestamp) {
+            this.fileId = fileId;
+            this.type = type;
+            this.chatId = chatId;
+            this.timestamp = timestamp;
+        }
+    }
+
+    private static class BufferedMessage {
+        public final String text;
+        public final List<MediaReference> mediaRefs;
+        public final long timestamp;
+
+        BufferedMessage(String text, List<MediaReference> mediaRefs, long timestamp) {
+            this.text = text;
+            this.mediaRefs = new ArrayList<>(mediaRefs);
+            this.timestamp = timestamp;
+        }
+    }
 
     // loads events.json file to https server
     public void startHttpServer() throws IOException {
@@ -146,14 +172,23 @@ public class MyBot implements LongPollingSingleThreadUpdateConsumer {
         return idx == null ? null : eventsList.get(idx);
     }
 
-    private static final String ALPHANUMERIC="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    private static final SecureRandom RANDOM=new SecureRandom();
-    public static String randomAlphanumeric(int length) {
-        StringBuilder sb = new StringBuilder(length);
-        for (int i=0; i<length; i++) {
-            sb.append(ALPHANUMERIC.charAt(RANDOM.nextInt(ALPHANUMERIC.length())));
+    private void updateEvent(Event newEvent) {
+        eventsList.set(newEvent.id, newEvent);
+        saveEventsToJson(eventsList);
+    }
+
+    private static String hashString(String input) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hash = md.digest(input.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder();
+            for (byte b : hash) {
+                hex.append(String.format("%02x", b));
+            }
+            return hex.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
         }
-        return sb.toString();
     }
 
     private List<String> downloadMediaRefs(List<MediaReference> refs) {
@@ -177,11 +212,16 @@ public class MyBot implements LongPollingSingleThreadUpdateConsumer {
     }
 
     private String downloadMedia(String fileId, String extension, long chatId, long timestamp) throws TelegramApiException, IOException {
+        String fileHash = hashString(fileId);
+        String fileName = chatId + "_" + timestamp + "_" + fileHash + "." + extension; // formatted in chatId_timestamp_FileId. mp4/jpg/gif
+        Path targetPath = Paths.get("images/", fileName);
+        if (Files.exists(targetPath)) {
+            System.out.println("Reusing exisiting file: "+fileName);
+            return "/images/"+fileName;
+        }
         GetFile getFile = GetFile.builder().fileId(fileId).build();
         org.telegram.telegrambots.meta.api.objects.File telegramFile = telegramClient.execute(getFile);
-        String uniqueId = randomAlphanumeric(8);
-        String fileName = chatId + "_" + timestamp + "_" + uniqueId + "." + extension; // formatted in chatId_timestamp_FileId. mp4/jpg/gif
-        Path targetPath = Paths.get("images/", fileName);
+
         try (InputStream inputStream = telegramClient.downloadFileAsStream(telegramFile)) {
             Files.createDirectories(targetPath.getParent());
             Files.copy(inputStream, targetPath, StandardCopyOption.REPLACE_EXISTING);
@@ -216,15 +256,17 @@ public class MyBot implements LongPollingSingleThreadUpdateConsumer {
 
     private void processBufferedMessages(String username, Event targetEvent, long currentTime) {
         List<BufferedMessage> buffers = messageBuffer.getOrDefault(username, new ArrayList<>());
+        Event temp = targetEvent;
         for (BufferedMessage bm : buffers) {
             long diff = currentTime - bm.timestamp;
             if (diff >= 0 && diff <= 900) {
                 List<String> urls = downloadMediaRefs(bm.mediaRefs);
-                targetEvent.merge(bm.text, urls);
+                temp = temp.merge(bm.text, urls);
             }
-            buffers.clear();
-            messageBuffer.remove(username);
         }
+        updateEvent(temp);
+        buffers.clear();
+        messageBuffer.remove(username);
     }
 
     private void handleLocationMessage(MessageContext ctx) {
@@ -245,12 +287,12 @@ public class MyBot implements LongPollingSingleThreadUpdateConsumer {
 
         if (existing != null && newEvent.isSameEvent(existing)) {
             List<String> urls = downloadMediaRefs(ctx.mediaRefs);
-            existing.merge(ctx.text, urls);
-            target = existing;
+            target = existing.merge(ctx.text, urls);
+            updateEvent(target);
             merged = true;
         } else {
             List<String> urls = downloadMediaRefs(ctx.mediaRefs);
-            newEvent.mediaUrls.addAll(urls);
+            newEvent.merge(null, urls);//downloads the media for newEvent
             addEvent(newEvent);
             target = newEvent;
             merged = false;
@@ -264,8 +306,8 @@ public class MyBot implements LongPollingSingleThreadUpdateConsumer {
         Event recent = getLatestEvent(ctx.userName);
         if (recent != null && (ctx.time - recent.time <= 900)) {//merge into recent event
             List<String> urls = downloadMediaRefs(ctx.mediaRefs);
-            recent.merge(ctx.text, urls);
-            saveEventsToJson(eventsList);
+            Event merged = recent.merge(ctx.text, urls);
+            updateEvent(merged);
             System.out.println("Merged non‑event message into recent event of " + ctx.userName);
         } else {//buffer the message
             BufferedMessage bm = new BufferedMessage(ctx.text, ctx.mediaRefs, ctx.time);
@@ -298,8 +340,8 @@ public class MyBot implements LongPollingSingleThreadUpdateConsumer {
         }
         List<String> urls = downloadMediaRefs(mediaRefs);
         String mergeText = "Edited: " + messageText;
-        recent.merge(mergeText, urls);
-        saveEventsToJson(eventsList);
+        Event merged = recent.merge(mergeText, urls);
+        updateEvent(merged);
         System.out.println("Merged edited message into event by " + userName);
     }
 

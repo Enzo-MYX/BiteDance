@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 
 public class Event {
     private static final double radius = 6371000;
@@ -11,13 +12,13 @@ public class Event {
     public final long hash;
     public final String uploader;
     public final Long time;
-    public String txt;
+    public final String txt;
     public final List<String> mediaUrls;
     public final String location;
     public final double lat;
     public final double lon;
     public Event(@JsonProperty("id") int id,
-                 @JsonProperty("hash") int hash,
+                 @JsonProperty("hash") long hash,
                  @JsonProperty("uploader") String uploader,
                  @JsonProperty("time") Long time,
                  @JsonProperty("txt") String txt,
@@ -29,11 +30,11 @@ public class Event {
         this.hash = hash;
         this.uploader = uploader;
         this.time = time;
-        this.txt = txt;
+        this.txt = txt != null ? txt : "";
         this.location = location;
         this.lat = lat;
         this.lon = lon;
-        this.mediaUrls = mediaUrls != null ? mediaUrls : new ArrayList<>();
+        this.mediaUrls = mediaUrls != null ? new ArrayList<>(mediaUrls) : new ArrayList<>();
     }
 
     public double distanceTo(Event other) {
@@ -51,12 +52,17 @@ public class Event {
         return Math.abs(other.time - this.time) <= 300 && distanceTo(other) <= 100;
     }
 
-    public void merge(String text, List<String> mediaUrls) {
-        if (text != null && !text.isEmpty()) {
-            this.txt += "\n----------\n" + text;
+    public Event merge(String text, List<String> newMediaUrls) {
+        String combinedTxt=this.txt;
+        if (text!=null&&!text.isEmpty()) {
+            if (combinedTxt.isEmpty()) {
+                combinedTxt=text;
+            } else {
+                combinedTxt+="\n----------\n"+text;
+            }
         }
-        if (mediaUrls != null) {
-            this.mediaUrls.addAll(mediaUrls);
-        }
+        List<String> combinedUrls= Stream.of(this.mediaUrls, newMediaUrls).filter(x->x!=null)
+                .flatMap(x->x.stream()).distinct().toList();
+        return new Event(id, hash, uploader, time, combinedTxt, location, lat, lon, combinedUrls);
     }
 }
