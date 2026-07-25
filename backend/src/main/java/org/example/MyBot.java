@@ -8,6 +8,7 @@ import com.sun.net.httpserver.HttpServer;
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer;
 import org.telegram.telegrambots.meta.api.methods.GetFile;
+import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.PhotoSize;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
@@ -28,19 +29,49 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
-public class MyBot implements LongPollingSingleThreadUpdateConsumer {
+public class MyBot implements LongPollingSingleThreadUpdateConsumer, AutoCloseable {
     private final String botToken;
+    private final long ownerId;
     private final OkHttpTelegramClient telegramClient; // The client to execute API calls
     private final List<Event> eventsList;
     private final Map<String, Integer> latestEventIndex = new HashMap<>();
     private final Map<String, List<BufferedMessage>> messageBuffer = new HashMap<>();
+    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
     public MyBot(String botToken) {
         this.botToken = botToken;
         this.telegramClient = new OkHttpTelegramClient(botToken);
         this.eventsList = loadEventsFromJson();
         rebuildIndexMap();
+        long tempOwnerId = 0;
+        String ownerIdStr = System.getenv("BOT_OWNER_ID");
+        if (ownerIdStr == null || ownerIdStr.isEmpty()) {
+            System.err.println("ERROR: BOT_OWNER_ID environment variable not set. 'Clear all' command will be disabled.");
+        } else {
+            try {
+                tempOwnerId = Long.parseLong(ownerIdStr);
+            } catch (NumberFormatException e) {
+                System.err.println("ERROR: BOT_OWNER_ID must be a numeric Telegram user ID.");
+            }
+        }
+        ownerId = tempOwnerId;
+        scheduler.scheduleAtFixedRate(this::cleanExpiredEvents, 24, 24, TimeUnit.HOURS);
+    }
+
+    @Override
+    public void close() {
+        scheduler.shutdownNow();
+        try {
+            if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
+                System.err.println("Scheduler did not shut down gracefully.");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private record MessageContext(long chatId, String userName, long time, String text, List<MediaReference> mediaRefs,
@@ -154,25 +185,25 @@ public class MyBot implements LongPollingSingleThreadUpdateConsumer {
         }
     }
 
-    private void rebuildIndexMap() {
+    private synchronized void rebuildIndexMap() {
         latestEventIndex.clear();
         for (int i = 0; i< eventsList.size(); i++) {
             latestEventIndex.put(eventsList.get(i).uploader, i);
         }
     }
 
-    private void addEvent(Event event) {
+    private synchronized void addEvent(Event event) {
         eventsList.add(event);
         latestEventIndex.put(event.uploader, event.id);
         saveEventsToJson(eventsList);
     }
 
-    private Event getLatestEvent(String userName) {
+    private synchronized Event getLatestEvent(String userName) {
         Integer idx = latestEventIndex.get(userName);
         return idx == null ? null : eventsList.get(idx);
     }
 
-    private void updateEvent(Event newEvent) {
+    private synchronized void updateEvent(Event newEvent) {
         eventsList.set(newEvent.id, newEvent);
         saveEventsToJson(eventsList);
     }
@@ -227,6 +258,93 @@ public class MyBot implements LongPollingSingleThreadUpdateConsumer {
             Files.copy(inputStream, targetPath, StandardCopyOption.REPLACE_EXISTING);
         }
         return "/images/" + fileName;
+    }
+
+    private void deleteMediaFiles(List<String> mediaUrls) {
+        for (String url : mediaUrls) {
+            String fileName=url.startsWith("/")?url.substring(1):url;
+            Path filePath=Paths.get(fileName);
+            try {
+                Files.deleteIfExists(filePath);
+            } catch (IOException e) {
+                System.err.println("Failed to delete file: "+fileName);
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private void deleteAllMedia() {
+        Path imagesDir=Paths.get("images/");
+        if (Files.exists(imagesDir)) {
+            try (var stream=Files.walk(imagesDir)) {
+                stream.filter(Files::isRegularFile).forEach(path->{
+                            try {Files.deleteIfExists(path);}
+                            catch (IOException e) {e.printStackTrace();}
+                        });
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private void sendMessage(long chatId, String text) {
+        SendMessage message = SendMessage.builder()
+                .chatId(chatId)
+                .text(text)
+                .build();
+        try {
+            telegramClient.execute(message);
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private synchronized void handleClearAll(long chatId) {
+        deleteAllMedia();
+        eventsList.clear();
+        latestEventIndex.clear();
+        messageBuffer.clear();
+        saveEventsToJson(eventsList);
+        sendMessage(chatId, "All events and media have been cleared.");
+        System.out.println("Cleared all events and media.");
+    }
+
+    private void handleCleanExpired(long chatId) {
+        int removed = cleanExpiredEvents();
+        if (removed==0) {
+            sendMessage(chatId, "No expired events found.");
+        }
+        else {
+            sendMessage(chatId, "Cleaned " + removed + " expired events and their media.");
+        }
+    }
+
+    private synchronized int cleanExpiredEvents() {
+        long now = System.currentTimeMillis()/1000+28800;
+        long expiryThreshold = 86400;
+        List<Event> expired = new ArrayList<>();
+        for (Event e : eventsList) {
+            if (now - e.time > expiryThreshold) {
+                expired.add(e);
+            }
+        }
+        if (expired.isEmpty()) return 0;
+        for (Event e : expired) {
+            deleteMediaFiles(e.mediaUrls);
+        }
+        eventsList.removeAll(expired);
+        List<Event> reindexed = new ArrayList<>();
+        for (int i = 0; i < eventsList.size(); i++) {
+            Event old = eventsList.get(i);
+            Event updated = new Event(i, old.hash, old.uploader, old.time, old.txt, old.location, old.lat, old.lon, old.mediaUrls);
+            reindexed.add(updated);
+        }
+        eventsList.clear();
+        eventsList.addAll(reindexed);
+        rebuildIndexMap();
+        saveEventsToJson(eventsList);
+        System.out.println("Performed regular cleanup: removed " + expired.size() + " expired events.");
+        return expired.size();
     }
 
     private MessageContext extractMessageContext(Message msg) {
@@ -354,18 +472,21 @@ public class MyBot implements LongPollingSingleThreadUpdateConsumer {
         if (!update.hasMessage()) return;
         Message msg = update.getMessage();
         if (!msg.hasText() && !msg.hasCaption() && !msg.hasPhoto() && !msg.hasAnimation() && !msg.hasVideo()) return; // blocking out empty updates; temporary fix
-//        if ("/start".equals(messageText)) {
-//            String welcomeText = String.format("Hello @%s! Enter /help to see the list of commands for this bot.", userName);
-//            SendMessage message = SendMessage.builder()
-//                    .chatId(chatId)
-//                    .text(welcomeText)
-//                    .build();
-//            try {
-//                telegramClient.execute(message);
-//            } catch (TelegramApiException e) {
-//                e.printStackTrace();
-//            }
-//        }
+        String text = msg.getText().trim();
+        long chatId = msg.getChatId();
+        long senderId = msg.getFrom().getId();
+        if (text.equalsIgnoreCase("clear all")) {
+            if (ownerId == 0 || senderId != ownerId) {
+                sendMessage(chatId, "LMAO Get rekt you can't use this command\nL Bozo");
+                return;
+            }
+            handleClearAll(chatId);
+            return;
+        }
+        if (text.equalsIgnoreCase("clean expired")) {
+            handleCleanExpired(chatId);
+            return;
+        }
         MessageContext ctx = extractMessageContext(msg);
         if (!ctx.keyword.isEmpty()) {
             handleLocationMessage(ctx);

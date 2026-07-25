@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/event.dart';
 
-const String baseUrl = 'http://3.27.216.9:8080';
+const String baseUrl = 'http://10.0.2.2:8080';
 class DetailScreen extends StatefulWidget {
   final Event event;
   const DetailScreen({super.key, required this.event});
