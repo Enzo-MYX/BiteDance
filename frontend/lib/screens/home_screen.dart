@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:bitedance/screens/filter_screen.dart';
+import 'package:bitedance/services/favorites_notifier.dart';
 import 'package:bitedance/services/filter_notifier.dart';
 import 'package:bitedance/services/notification_service.dart';
 import 'package:bitedance/services/region_notifier.dart';
@@ -24,6 +25,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Set<int> _favoriteIds = {};
   late RegionNotifier _regionNotifier;
   late FilterNotifier _filterNotifier;
+  late FavoritesNotifier _favoritesNotifier;
 
   final Location _locationService = Location();
   double _currentLat = 0.0;
@@ -41,6 +43,8 @@ class _HomeScreenState extends State<HomeScreen> {
     _regionNotifier.addListener(_onRegionChanged);
     _filterNotifier = FilterNotifier.instance;
     _filterNotifier.addListener(_onFilterChanged);
+    _favoritesNotifier = FavoritesNotifier.instance;
+    _favoritesNotifier.addListener(_onFavoritesChanged);
     // Auto-refresh every 30 seconds
     _startAutoRefresh();
   }
@@ -114,13 +118,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _toggleFavorite(int eventId) {
-    setState(() {
-      if (_favoriteIds.contains(eventId)) {
-        _favoriteIds.remove(eventId);
-      } else {
-        _favoriteIds.add(eventId);
-      }
-    });
+    _favoritesNotifier.toggleFavorite(eventId);
   }
 
   void _onRegionChanged() {
@@ -131,11 +129,16 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {});
   }
 
+  void _onFavoritesChanged() {
+    setState(() {});
+  }
+
   @override
   void dispose() {
     _refreshTimer?.cancel();
     _regionNotifier.removeListener(_onRegionChanged);
     _filterNotifier.removeListener(_onFilterChanged);
+    _favoritesNotifier.removeListener(_onFavoritesChanged);
     super.dispose();
   }
 
@@ -145,7 +148,6 @@ class _HomeScreenState extends State<HomeScreen> {
       double dist = event.distanceFrom(region.lat, region.lon);
       if (dist <= region.radius) return true;
     }
-    return _isEventNearMe(event);
     return _isEventNearMe(event);
   }
 
@@ -160,7 +162,7 @@ class _HomeScreenState extends State<HomeScreen> {
     var filtered = List<Event>.from(events);
 
     if (_filterNotifier.onlyFavorites) {
-      filtered = filtered.where((e) => _favoriteIds.contains(e.id)).toList();
+      filtered = filtered.where((e) => _favoritesNotifier.isFavorite(e.id)).toList();
     }
     if (_filterNotifier.onlyWatched) {
       filtered = filtered.where((e) => _isEventInRegion(e)).toList();
@@ -198,7 +200,7 @@ class _HomeScreenState extends State<HomeScreen> {
           FloatingActionButton(
             heroTag: 'filter',
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FilterOrderScreen())),
-            child: const Icon(Icons.filter_list),
+            child: const Icon(Icons.filter_list_alt),
           ),
           const SizedBox(width: 16),
           FloatingActionButton(
@@ -251,7 +253,7 @@ class _HomeScreenState extends State<HomeScreen> {
               itemCount: filteredEvents.length,
               itemBuilder: (context, index) {
                 final event = filteredEvents[index];
-                final isFav = _favoriteIds.contains(event.id);
+                final isFav = _favoritesNotifier.isFavorite(event.id);
                 String distanceText = '...';
                 if (_currentLat != 0.0 || _currentLon != 0.0) {
                   double dist = event.distanceFrom(_currentLat, _currentLon);
@@ -363,10 +365,10 @@ class _HomeScreenState extends State<HomeScreen> {
                             IconButton(
                               icon: Icon(
                                 isFav
-                                    ? Icons.star
-                                    : Icons.star_border,
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
                                 color: isFav
-                                    ? Colors.amber
+                                    ? Colors.red
                                     : Colors.grey,
                               ),
                               onPressed: () =>

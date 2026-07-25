@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/event.dart';
+import '../services/favorites_notifier.dart';
 
 const String baseUrl = 'http://10.0.2.2:8080';
 class DetailScreen extends StatefulWidget {
@@ -11,6 +12,7 @@ class DetailScreen extends StatefulWidget {
 }
 
 class _DetailScreenState extends State<DetailScreen> {
+  late FavoritesNotifier _favoritesNotifier;
   late PageController _pageController;
   int _currentPage = 0;
 
@@ -18,6 +20,7 @@ class _DetailScreenState extends State<DetailScreen> {
   void initState() {
     super.initState();
     _pageController = PageController();
+    _favoritesNotifier = FavoritesNotifier.instance;
   }
 
   @override
@@ -147,7 +150,22 @@ class _DetailScreenState extends State<DetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.event.location)),
+      appBar: AppBar(title: Text(widget.event.location),
+        actions: [
+          IconButton(
+            icon: Icon(
+              _favoritesNotifier.isFavorite(widget.event.id)
+                  ? Icons.favorite
+                  : Icons.favorite_border,
+              color: Colors.red,
+            ),
+            onPressed: () {
+              _favoritesNotifier.toggleFavorite(widget.event.id);
+              setState(() {});
+            },
+          ),
+        ],
+      ),
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(16),

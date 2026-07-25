@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/region.dart';
 import 'region_notifier.dart';
 import 'filter_notifier.dart';
+import 'favorites_notifier.dart';
 
 class SettingsSaver {
   static Future<void> saveAll() async {
@@ -24,6 +25,9 @@ class SettingsSaver {
       'reverse': filter.reverse,
     };
     await prefs.setString('filter', jsonEncode(filterMap));
+
+    final favoritesList = FavoritesNotifier.instance.favorites.toList();
+    await prefs.setString('favorites', jsonEncode(favoritesList));
   }
 
   static Future<void> loadAll() async {
@@ -52,6 +56,13 @@ class SettingsSaver {
       filter.orderBy = filterMap['orderBy'] ?? 'none';
       filter.reverse = filterMap['reverse'] ?? false;
       filter.notifyListeners(); // trigger UI updates
+    }
+
+    final favoritesJson = prefs.getString('favorites');
+    if (favoritesJson != null) {
+      final List<dynamic> list = jsonDecode(favoritesJson);
+      final favoritesSet = list.map((e) => e as int).toSet();
+      FavoritesNotifier.instance.setFavorites(favoritesSet);
     }
   }
 }
