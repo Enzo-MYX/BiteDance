@@ -4,7 +4,7 @@ import '../models/event.dart';
 import '../services/events_loader.dart';
 
 class NetworkEventLoader {
-  static const String baseUrl = 'http://10.0.2.2:8080'; // Android emulator
+  static const String baseUrl = 'http://3.27.216.9:8080'; // Android emulator
 
   static Future<List<Event>> fetchEvents() async {
     try {

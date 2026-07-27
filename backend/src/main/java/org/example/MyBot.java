@@ -410,7 +410,7 @@ public class MyBot implements LongPollingSingleThreadUpdateConsumer, AutoCloseab
             merged = true;
         } else {
             List<String> urls = downloadMediaRefs(ctx.mediaRefs);
-            newEvent.merge(null, urls);//downloads the media for newEvent
+            newEvent = newEvent.merge(null, urls);//downloads the media for newEvent
             addEvent(newEvent);
             target = newEvent;
             merged = false;
@@ -472,20 +472,22 @@ public class MyBot implements LongPollingSingleThreadUpdateConsumer, AutoCloseab
         if (!update.hasMessage()) return;
         Message msg = update.getMessage();
         if (!msg.hasText() && !msg.hasCaption() && !msg.hasPhoto() && !msg.hasAnimation() && !msg.hasVideo()) return; // blocking out empty updates; temporary fix
-        String text = msg.getText().trim();
-        long chatId = msg.getChatId();
-        long senderId = msg.getFrom().getId();
-        if (text.equalsIgnoreCase("clear all")) {
-            if (ownerId == 0 || senderId != ownerId) {
-                sendMessage(chatId, "LMAO Get rekt you can't use this command\nL Bozo");
+        if (msg.hasText()) {
+            String text = msg.getText().trim();
+            long chatId = msg.getChatId();
+            long senderId = msg.getFrom().getId();
+            if (text.equalsIgnoreCase("clear all")) {
+                if (ownerId == 0 || senderId != ownerId) {
+                    sendMessage(chatId, "LMAO Get rekt you can't use this command\nL Bozo");
+                    return;
+                }
+                handleClearAll(chatId);
                 return;
             }
-            handleClearAll(chatId);
-            return;
-        }
-        if (text.equalsIgnoreCase("clean expired")) {
-            handleCleanExpired(chatId);
-            return;
+            if (text.equalsIgnoreCase("clean expired")) {
+                handleCleanExpired(chatId);
+                return;
+            }
         }
         MessageContext ctx = extractMessageContext(msg);
         if (!ctx.keyword.isEmpty()) {
